@@ -9,5 +9,14 @@
   },
   "files.associations": {
     "*.css": "tailwindcss"
-  }
+  },
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "driver": "SQLite",
+      "name": "grad-data",
+      "database": "${workspaceFolder:grad-data}/sqlite/grad-data.db"
+    }
+  ],
+  "sqltools.useNodeRuntime": true
 }

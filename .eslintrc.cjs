@@ -1,6 +1,6 @@
 module.exports = {
   root: true,
-  env: { browser: true, es2020: true },
+  env: {  es2020: true, browser: true },
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/strict-type-checked',
@@ -28,5 +28,10 @@ module.exports = {
       'warn',
       { allowConstantExport: true },
     ],
+    '@typescript-eslint/restrict-template-expressions': 'off',
+    '@typescript-eslint/consistent-type-definitions': [
+      'error',
+      'type'
+    ]
   },
 }
