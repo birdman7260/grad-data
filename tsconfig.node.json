@@ -1,6 +1,7 @@
+// This tsconfig gets applied to the scripts
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ESNext",
     "composite": true,
     "skipLibCheck": true,
     "module": "ESNext",
@@ -8,5 +9,5 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
   },
-  "include": ["vite.config.ts", "tailwind.config.js", "scripts"]
+  "include": ["vite.config.ts", "tailwind.config.js", "scripts", "types/**/*.d.ts"]
 }

@@ -1,3 +1,4 @@
+// This tsconfig is to handle the actual application
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -20,6 +21,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
+  "include": ["src", "**/*.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
