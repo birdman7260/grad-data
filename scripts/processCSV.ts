@@ -19,10 +19,10 @@ type CSVRow = {
 type CSVRowTransformed = {
   project: string;
   description: string;
-  type: string[];
+  type: TagType[];
   billable: 1 | 0; // 0-false, 1-true
-  start: Date;
-  end: Date;
+  start: Date; // will be ISO 8601 format, e.g: 2021-12-13T14:14:45-08:00
+  end: Date; // will be ISO 8601 format, e.g: 2021-12-13T14:14:45-08:00
   duration: number; // seconds
 };
 
@@ -60,6 +60,10 @@ await db.exec(SQL`DROP TABLE IF EXISTS totalsTyped;`);
 await db.exec(SQL`DROP TABLE IF EXISTS totalsTime;`);
 
 /**
+ * Table "raw" contains all data entries from the CSV
+ * 
+ * type - JSON array of tag strings - TagType[] - @see TagType
+ * billable - 0 | 1
  * start - ISO8601
  * end - ISO8601
  * duration - seconds
@@ -74,6 +78,17 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS raw (
   duration INTEGER NOT NULL
 );`);
 
+/**
+ * Table "totalsGrouped" aggregates the durations by project+description and additionally
+ * calculates a breakdown of the duration by hour of the day, day of the week, and year
+ * 
+ * type - JSON array of tag strings - TagType[] - @see TagType
+ * totalTime - seconds
+ * histogramHour - JSON object - { '00': 23134, '01': 4523456, ... } - only includes hours with data
+ * histogramDay - JSON object - { '0': 23134, '1': 4523456, ... } - only includes days with data
+ *  days start with Monday and represented by 0-6
+ * histogramHour - JSON object - { '2022': 23134, '2023': 4523456, ... } - only includes years with data
+ */
 await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsGrouped (
   project TEXT NOT NULL,
   description TEXT NOT NULL,
@@ -85,6 +100,17 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsGrouped (
   PRIMARY KEY (project, description)
 );`);
 
+/**
+ * Table "totalsTyped" aggregates the durations by tag type and additionally
+ * calculates a breakdown of the duration by hour of the day, day of the week, and year
+ * 
+ * type - @see TagType
+ * totalTime - seconds
+ * histogramHour - JSON object - { '00': 23134, '01': 4523456, ... } - only includes hours with data
+ * histogramDay - JSON object - { '0': 23134, '1': 4523456, ... } - only includes days with data
+ *  days start with Monday and represented by 0-6
+ * histogramHour - JSON object - { '2022': 23134, '2023': 4523456, ... } - only includes years with data
+ */
 await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsTyped (
   type TEXT,
   totalTime INTEGER NOT NULL,
@@ -95,7 +121,12 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsTyped (
 );`);
 
 /**
- * timeType - hour | hourDay | day | dayWeek | month | monthYear | week | weekMonth | weekYear | year
+ * Table "totalsTyped" aggregates the durations by tag type and additionally
+ * calculates a breakdown of the duration by hour of the day, day of the week, and year
+ * 
+ * timeType - @see TimeType
+ * timeValue - depends on timeType, see the insert code for comments showing the format
+ * totalTime - seconds
  */
 await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsTime (
   timeType TEXT NOT NULL,
@@ -103,6 +134,11 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsTime (
   totalTime INTEGER NOT NULL,
   PRIMARY KEY (timeType, timeValue)
 );`);
+
+type TagAssignment = {
+  type: TagType;
+  matcher: RegExp;
+}
 
 const tags = {
   fuzzyProject: [
@@ -150,7 +186,7 @@ const tags = {
       type: 'Compost',
       matcher: /(capstone|compost)/i,
     },
-  ],
+  ] as TagAssignment[],
   fuzzyDescription: [
     {
       type: 'Apply',
@@ -212,7 +248,7 @@ const tags = {
       type: 'PNNL',
       matcher: /(pnnl|apartment)/i,
     },
-  ],
+  ] as TagAssignment[],
 };
 
 const descriptionCleaner: Partial<Record<string, Record<string, string>>> = {
@@ -234,7 +270,7 @@ const cleanDescription = (project: string, description: string) => {
 };
 
 const createTags = (project: string, description: string) => {
-  const tagSet = new Set<string>();
+  const tagSet = new Set<TagType>();
   for (const tagMatch of tags.fuzzyProject) {
     if (tagMatch.matcher.test(project)) tagSet.add(tagMatch.type);
   }

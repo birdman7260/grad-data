@@ -1,6 +1,15 @@
+import {possibleTagType, possibleTimeType} from '../common/enums';
+
 // I put these here so that the types are globally available within the project
 // specifically so that both the app and the scripts are dealing with the exact same types
 declare global {
+  
+  type TimeType = (typeof possibleTimeType)[number];
+  
+  type TagType = (typeof possibleTagType)[number];
+  
+  type Histogram = Record<string, number>;
+
   type FinalTimeValue =
     | {
         totalTime: number;

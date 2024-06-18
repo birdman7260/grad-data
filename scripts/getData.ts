@@ -3,51 +3,12 @@ import { addWeeks, format as formatDate } from 'date-fns';
 import { open } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
+import {possibleTagType, possibleTimeType} from '../common/enums'
 
 const db = await open({
   filename: 'sqlite/grad-data.db',
   driver: sqlite3.verbose().Database,
 });
-
-const possibleTimeType = [
-  'hour',
-  'hourDayWeek',
-  'day',
-  'dayWeek',
-  'month',
-  'monthYear',
-  'week',
-  'weekMonth',
-  'year',
-] as const;
-
-const possibleTagType = [
-  'Apply',
-  'Beyond',
-  'Community',
-  'Compost',
-  'Dogs',
-  'Email',
-  'Exercise',
-  'Fun',
-  'Hustle',
-  'Meeting',
-  'Networking',
-  'New',
-  'PNNL',
-  'Paid',
-  'Research',
-  'Resume',
-  'Scholarship',
-  'School',
-  'UNKNOWN',
-  'Work',
-] as const;
-
-type TimeType = (typeof possibleTimeType)[number];
-type TagType = (typeof possibleTagType)[number];
-
-type Histogram = Record<string, number>;
 
 type ITopByTimeQuery<T extends TimeType, Y extends string> = {
   timeType: T;

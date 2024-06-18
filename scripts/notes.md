@@ -1,3 +1,7 @@
+# Poop
+
+TODO: should "per hour" calculation account for the length of the task and not just the start time? YES!! figure that out...
+
 Get Hired at Dream Job
   Meet - lots of types of meetings
   PNNL - look for specifics related to the internship (Accept internship position at PNNL)

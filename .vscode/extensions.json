@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "bradlc.vscode-tailwindcss",
+    "thebearingedge.vscode-sql-lit",
+    "dbaeumer.vscode-eslint"
+  ]
+}
