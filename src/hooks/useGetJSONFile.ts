@@ -5,7 +5,7 @@ export const useGetJSONFile = <T extends object>(fileName: string) => {
 
   useEffect(() => {
     const fetchJSON = async () => {
-      const response = await fetch(`/public/${fileName}`);
+      const response = await fetch(`/${fileName}`);
       const jsonData = (await response.json()) as T;
       setData(jsonData);
     };
