@@ -3,7 +3,7 @@ import { addWeeks, format as formatDate } from 'date-fns';
 import { open } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
-import {possibleTagType, possibleTimeType} from '../common/enums'
+import { possibleTagType, possibleTimeType } from '../common/enums';
 
 const db = await open({
   filename: 'sqlite/grad-data.db',
@@ -90,41 +90,64 @@ ORDER BY parted.timeType,
 `);
 
 // chose a random date that i know the day of
+/**
+ * @returns string like: Monday, Tuesday, ..., Sunday
+ */
 const dayMap = (day: number) => formatDate(new Date(2024, 5, 3 + day), 'iiii');
+
+/**
+ * @returns string like: 3 pm, 12 noon
+ */
 const hourMap = (hour: number) =>
   formatDate(new Date(1970, 1, 1, hour), 'h bbb');
+
+/**
+ * @returns string like: January, February, ..., December
+ */
 const monthMap = (month: number) => formatDate(new Date(2024, month), 'LLLL');
 
 const getTimeString = (type: TimeType, time: string) => {
   switch (type) {
+    // 3 pm, 12 noon
     case 'hour':
       return hourMap(parseInt(time));
 
+    // Fridays at 3 pm, Mondays at 12 noon
     case 'hourDayWeek': {
       const [day, hour] = time.split('_');
       return `${dayMap(parseInt(day))}s at ${hourMap(parseInt(hour))}`;
     }
+
+    // Friday, April 29th, 2020
     case 'day':
       return formatDate(time, 'PPPP');
 
+    // Monday
     case 'dayWeek':
       return dayMap(parseInt(time));
 
+    // 1st week of 2022
     case 'week': {
       const [week, year] = time.split('_');
       return `${formatDate(addWeeks(new Date(year), parseInt(week)), 'wo')} week of ${year}`;
     }
+
+    // 2nd week of Januarys
     case 'weekMonth': {
       const [month, week] = time.split('_');
       return `${formatDate(new Date(1970, 1, 1 + parseInt(week)), 'do')} week of ${monthMap(parseInt(month))}s`;
     }
+
+    // January
     case 'month':
       return monthMap(parseInt(time));
 
+    // March in 2021
     case 'monthYear': {
       const [year, month] = time.split('-');
       return `${monthMap(parseInt(month))} in ${year}`;
     }
+
     default:
       return time;
   }

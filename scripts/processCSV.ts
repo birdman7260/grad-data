@@ -61,7 +61,7 @@ await db.exec(SQL`DROP TABLE IF EXISTS totalsTime;`);
 
 /**
  * Table "raw" contains all data entries from the CSV
- * 
+ *
  * type - JSON array of tag strings - TagType[] - @see TagType
  * billable - 0 | 1
  * start - ISO8601
@@ -81,7 +81,7 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS raw (
 /**
  * Table "totalsGrouped" aggregates the durations by project+description and additionally
  * calculates a breakdown of the duration by hour of the day, day of the week, and year
- * 
+ *
  * type - JSON array of tag strings - TagType[] - @see TagType
  * totalTime - seconds
  * histogramHour - JSON object - { '00': 23134, '01': 4523456, ... } - only includes hours with data
@@ -103,7 +103,7 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsGrouped (
 /**
  * Table "totalsTyped" aggregates the durations by tag type and additionally
  * calculates a breakdown of the duration by hour of the day, day of the week, and year
- * 
+ *
  * type - @see TagType
  * totalTime - seconds
  * histogramHour - JSON object - { '00': 23134, '01': 4523456, ... } - only includes hours with data
@@ -123,7 +123,7 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsTyped (
 /**
  * Table "totalsTyped" aggregates the durations by tag type and additionally
  * calculates a breakdown of the duration by hour of the day, day of the week, and year
- * 
+ *
  * timeType - @see TimeType
  * timeValue - depends on timeType, see the insert code for comments showing the format
  * totalTime - seconds
@@ -138,7 +138,7 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsTime (
 type TagAssignment = {
   type: TagType;
   matcher: RegExp;
-}
+};
 
 const tags = {
   fuzzyProject: [
@@ -519,6 +519,10 @@ INSERT INTO totalsTyped
     JOIN by_year b ON types.value = b.type
   GROUP BY types.value 
 `);
+
+// NOTE: for all of the following totalsTime entries
+// the format string used for `strftime()` is found: https://www.sqlite.org/lang_datefunc.html
+// my comments show the resulting format according to dat-fns: https://date-fns.org/v3.6.0/docs/format
 
 // fills totalsTime - hour - HH
 await db.run(SQL`

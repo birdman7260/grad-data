@@ -1,0 +1,4 @@
+div[type="heatmap"] div.apexcharts-legend-series[seriesname="Less"] {
+  display: flex;
+  flex-direction: row-reverse;
+}

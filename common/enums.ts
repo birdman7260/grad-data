@@ -1,5 +1,6 @@
-
-
+/**
+ * @see {@link TimeType}
+ */
 export const possibleTimeType = [
   'hour',
   'hourDayWeek',
