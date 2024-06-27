@@ -50,5 +50,43 @@ Stuff related to community:
     Prepare for SACNAS
   Hacker Refactor
 
-
 Create tables with answers to the most per each day/hour/year?
+
+ideas for pages:
+
+- single day of the most ever
+  - what other holidays were on that day?
+  - other versions that is just for a random year?
+- Show the different categories
+  - Bar chart?
+  - TreeMap?
+    - maybe this specifically for classes?
+  - pie?
+- which time was the most?
+  - year
+    - this is covered by a heatmap
+  - hour
+    - just custom text?
+    - discuss the categories during this hour?
+- project or project/description histograms
+  - Which project was the most?
+    - just custom text?
+      - Which day was the most?
+      - what happened on that day?
+      - which month? (what holidays in that month?)
+      - what type is it?
+  - Same for project/description?
+    - or use the most description in the above?
+- Show the different projects
+  - Bar chart?
+  - TreeMap?
+    - maybe this specifically for classes?
+  - pie?
+    - donut with pie inside?
+- histogram
+  - can show a random histogram of:
+    - hour
+    - day
+    - year
+  - show histogram of above, but choose the max type for each part
+  - another of that but use project instead?
