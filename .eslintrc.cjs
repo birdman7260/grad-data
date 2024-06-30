@@ -33,5 +33,6 @@ module.exports = {
       'type'
     ],
     '@typescript-eslint/restrict-template-expressions': 'off',
+    '@typescript-eslint/no-non-null-assertion': 'off'
   },
 }
