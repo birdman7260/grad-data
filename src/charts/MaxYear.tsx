@@ -268,7 +268,6 @@ function MaxYear({ year, dayData: data }: MaxYearProps) {
                     return formatDate(
                       opt.w.globals.initialSeries[opt.seriesIndex].data[
                         opt.dataPointIndex
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
                       ].x,
                       'iiii',
                     );

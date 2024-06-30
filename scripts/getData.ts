@@ -191,8 +191,10 @@ FROM totalsTyped
 
     final.byType.all[row.type] = {
       total: row.totalTime,
+      type: row.type,
       histogramDay: JSON.parse(row.histogramDay) as Histogram,
       histogramHour: JSON.parse(row.histogramHour) as Histogram,
+      // TODO: month nice?
       histogramYear: JSON.parse(row.histogramYear) as Histogram,
     };
   },

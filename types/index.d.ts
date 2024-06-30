@@ -8,11 +8,11 @@ declare global {
    *
    *      'hour'          timeValue|originalTime: HH - ex: 00, 01, 02, ..., 23
    *                      timeString: h bbb - ex: 3 pm, 12 noon
-   *      'hourDayWeek'   timeValue|originalTime:
+   *      'hourDayWeek'   timeValue|originalTime: 0-6_HH - ex: 4_15
    *                      timeString: iiiis at h bbb - ex: Fridays at 3 pm
    *      'day'           timeValue|originalTime: YYYY-MM-DD - ex: 2020-01-01
    *                      timeString: PPPP - ex: Friday, April 29th, 2021
-   *      'dayWeek'       timeValue|originalTime: w - ex: 1, 2, ..., 53
+   *      'dayWeek'       timeValue|originalTime: w - ex: 0, 1, ..., 6
    *                      timeString: iiii - ex: Monday
    *      'month'         timeValue|originalTime: MM - ex: 01, 02, ..., 12
    *                      timeString: LLLL - ex: January
@@ -41,6 +41,7 @@ declare global {
 
   type FinalTypeValue =
     | {
+        type: string;
         total: number;
         histogramHour: Histogram;
         histogramDay: Histogram;

@@ -337,7 +337,6 @@ const processFile = async (file: string) => {
       console.error(`parse error: ${e}`);
       process.exit(1);
     })
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     .on('data', (row: CSVRowTransformed) => {
       promises.push(
         insert.run(
