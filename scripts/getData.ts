@@ -37,8 +37,10 @@ type AllByTimeQuery = {
 type AllByTypeQuery = {
   type: TagType;
   totalTime: number;
-  histogramHour: string;
-  histogramDay: string;
+  histogramHourCount: string;
+  histogramDayCount: string;
+  histogramMonthCount: string;
+  histogramMonthYearCount: string;
   histogramYear: string;
 };
 
@@ -47,8 +49,10 @@ type AllGroupedQuery = {
   description: string;
   type: string;
   totalTime: number;
-  histogramHour: string;
-  histogramDay: string;
+  histogramHourCount: string;
+  histogramDayCount: string;
+  histogramMonthCount: string;
+  histogramMonthYearCount: string;
   histogramYear: string;
 };
 
@@ -192,10 +196,19 @@ FROM totalsTyped
     final.byType.all[row.type] = {
       total: row.totalTime,
       type: row.type,
-      histogramDay: JSON.parse(row.histogramDay) as Histogram,
-      histogramHour: JSON.parse(row.histogramHour) as Histogram,
-      // TODO: month nice?
-      histogramYear: JSON.parse(row.histogramYear) as Histogram,
+      histogramHourCount: JSON.parse(
+        row.histogramHourCount,
+      ) as Histogram<number>,
+      histogramDayCount: JSON.parse(
+        row.histogramDayCount,
+      ) as Histogram<HistogramComplexValue>,
+      histogramMonthCount: JSON.parse(
+        row.histogramMonthCount,
+      ) as Histogram<HistogramComplexValue>,
+      histogramMonthYearCount: JSON.parse(
+        row.histogramMonthYearCount,
+      ) as Histogram<HistogramComplexValue>,
+      histogramYear: JSON.parse(row.histogramYear) as Histogram<number>,
     };
   },
 );
@@ -217,9 +230,19 @@ FROM totalsGrouped
       description: row.description,
       type: JSON.parse(row.type) as TagType[],
       total: row.totalTime,
-      histogramDay: JSON.parse(row.histogramDay) as Histogram,
-      histogramHour: JSON.parse(row.histogramHour) as Histogram,
-      histogramYear: JSON.parse(row.histogramYear) as Histogram,
+      histogramHourCount: JSON.parse(
+        row.histogramHourCount,
+      ) as Histogram<number>,
+      histogramDayCount: JSON.parse(
+        row.histogramDayCount,
+      ) as Histogram<HistogramComplexValue>,
+      histogramMonthCount: JSON.parse(
+        row.histogramMonthCount,
+      ) as Histogram<HistogramComplexValue>,
+      histogramMonthYearCount: JSON.parse(
+        row.histogramMonthYearCount,
+      ) as Histogram<HistogramComplexValue>,
+      histogramYear: JSON.parse(row.histogramYear) as Histogram<number>,
     };
   },
 );

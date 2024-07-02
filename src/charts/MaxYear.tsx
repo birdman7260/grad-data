@@ -258,10 +258,8 @@ function MaxYear({ year, dayData: data }: MaxYearProps) {
           tooltip: {
             y: {
               formatter: (value) =>
-                formatDuration(
-                  { hours: Math.trunc(value / 60 / 60) },
-                  { format: ['hours'] },
-                ) || 'N/A',
+                formatDuration({ hours: value }, { format: ['hours'] }) ||
+                'N/A',
               title: {
                 formatter(seriesName, opt?) {
                   if (isTooltipYTitleFormatterOpts(opt)) {

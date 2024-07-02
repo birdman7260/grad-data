@@ -29,7 +29,14 @@ declare global {
 
   type TagType = (typeof possibleTagType)[number];
 
-  type Histogram = Record<string, number>;
+  type HistogramComplexValue = {
+    count: number;
+    hourCount: number;
+  };
+
+  type HistogramValue = HistogramComplexValue | number;
+
+  type Histogram<T extends HistogramValue> = Record<string, T>;
 
   type FinalTimeValue =
     | {
@@ -43,9 +50,11 @@ declare global {
     | {
         type: string;
         total: number;
-        histogramHour: Histogram;
-        histogramDay: Histogram;
-        histogramYear: Histogram;
+        histogramHourCount: Histogram<number>;
+        histogramDayCount: Histogram<HistogramComplexValue>;
+        histogramMonthCount: Histogram<HistogramComplexValue>;
+        histogramMonthYearCount: Histogram<HistogramComplexValue>;
+        histogramYear: Histogram<number>;
       }
     | Record<string, never>;
 
@@ -55,9 +64,11 @@ declare global {
         description: string;
         type: TagType[];
         total: number;
-        histogramHour: Histogram;
-        histogramDay: Histogram;
-        histogramYear: Histogram;
+        histogramHourCount: Histogram<number>;
+        histogramDayCount: Histogram<HistogramComplexValue>;
+        histogramMonthCount: Histogram<HistogramComplexValue>;
+        histogramMonthYearCount: Histogram<HistogramComplexValue>;
+        histogramYear: Histogram<number>;
       }
     | Record<string, never>;
 

@@ -27,24 +27,28 @@ function App() {
   const maxYearData = data.byTime.top.year[0];
   const maxYear = parseInt(maxYearData.originalTime);
 
+  const hourData = [];
   const hourKeys = Array.from({ length: 24 }, (_, i) =>
     i.toLocaleString('en', { minimumIntegerDigits: 2 }),
   );
-
-  const dayKeys = Array.from({ length: 7 }, (_, i) => i.toLocaleString());
-  const hourData = [];
   for (const tv of Object.values(data.byType.all)) {
     for (const hour of hourKeys) {
-      if (!tv.histogramHour[hour]) tv.histogramHour[hour] = 0;
+      if (!tv.histogramHourCount[hour]) tv.histogramHourCount[hour] = 0;
     }
-    hourData.push({ name: tv.type, hist: tv.histogramHour });
+    hourData.push({ name: tv.type, hist: tv.histogramHourCount });
   }
+
   const dayData = [];
+  const dayKeys = Array.from({ length: 7 }, (_, i) => i.toLocaleString());
   for (const tv of Object.values(data.byType.all)) {
+    const newHist: Histogram<number> = {};
     for (const day of dayKeys) {
-      if (!tv.histogramDay[day]) tv.histogramDay[day] = 0;
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (tv.histogramDayCount[day] === undefined)
+        tv.histogramDayCount[day] = { count: 0, hourCount: 0 };
+      newHist[day] = tv.histogramDayCount[day].hourCount;
     }
-    dayData.push({ name: tv.type, hist: tv.histogramDay });
+    dayData.push({ name: tv.type, hist: newHist });
   }
 
   const datum: Datum = {

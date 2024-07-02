@@ -2,7 +2,7 @@ import Chart from 'react-apexcharts';
 
 type HistogramData = {
   name: string;
-  hist: Histogram;
+  hist: Histogram<number>;
 };
 
 type HistogramProps = {
@@ -16,11 +16,7 @@ function Histogram({
   data,
   histoKeys: keys,
   xFormatter = (val) => val,
-  YFormatter = (val) => {
-    return (val / 60 / 60).toLocaleString('en', {
-      maximumFractionDigits: 1,
-    });
-  },
+  YFormatter = (val) => `${val}`,
 }: HistogramProps) {
   const stagedSeries = keys.reduce<
     Record<string, Record<string, ChartDataTypeFull | undefined> | undefined>
