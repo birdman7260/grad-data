@@ -56,7 +56,10 @@ const db = await open({
 
 await db.exec(SQL`DROP TABLE IF EXISTS [raw];`);
 await db.exec(SQL`DROP TABLE IF EXISTS houred;`);
+await db.exec(SQL`DROP TABLE IF EXISTS cleanedType;`);
+await db.exec(SQL`DROP TABLE IF EXISTS totals;`);
 await db.exec(SQL`DROP TABLE IF EXISTS totalsGrouped;`);
+await db.exec(SQL`DROP TABLE IF EXISTS totalsProject;`);
 await db.exec(SQL`DROP TABLE IF EXISTS totalsTyped;`);
 await db.exec(SQL`DROP TABLE IF EXISTS totalsTime;`);
 
@@ -72,7 +75,7 @@ await db.exec(SQL`DROP TABLE IF EXISTS totalsTime;`);
 await db.exec(SQL`CREATE TABLE IF NOT EXISTS [raw] (
   project TEXT NOT NULL,
   [description] TEXT NOT NULL,
-  [type] TEXT,
+  [type] TEXT NOT NULL,
   billable INTEGER NOT NULL,
   [start] TEXT NOT NULL,
   [end] TEXT NOT NULL,
@@ -80,18 +83,20 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS [raw] (
 );`);
 
 /**
- * Table "raw" contains all data entries from the CSV
+ * Table "houred" contains all the records from "raw" but
+ * duplicates them once per hour between start and end times
  *
  * type - JSON array of tag strings - TagType[] - @see TagType
  * billable - 0 | 1
  * start - ISO8601
  * end - ISO8601
  * duration - seconds
+ * startdate - ISO8601 - this is each hour's value
  */
 await db.exec(SQL`CREATE TABLE IF NOT EXISTS houred (
   project TEXT NOT NULL,
   [description] TEXT NOT NULL,
-  [type] TEXT,
+  [type] TEXT NOT NULL,
   [start] TEXT NOT NULL,
   [end] TEXT NOT NULL,
   duration INTEGER NOT NULL,
@@ -99,27 +104,64 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS houred (
 );`);
 
 /**
+ * Table "cleanedType" contains records for each project+description
+ * and a JSON array of their types, to be used by other queries
+ *
+ * types - JSON array of types
+ */
+await db.exec(SQL`CREATE TABLE IF NOT EXISTS cleanedType (
+  project TEXT NOT NULL,
+  [description] TEXT NOT NULL,
+  types TEXT NOT NULL,
+  PRIMARY KEY (project, [description])
+);`);
+
+/**
+ * Table "totals" contains records for the total amount of time
+ * for each slice of data (project, project.description, type)
+ *
+ * sliceType - @see TotalsType
+ * sliceKey - value depends on the sliceType
+ * totalTime - seconds
+ */
+await db.exec(SQL`CREATE TABLE IF NOT EXISTS totals (
+  sliceType TEXT NOT NULL,
+  sliceKey TEXT NOT NULL,
+  totalTime INTEGER NOT NULL,
+  PRIMARY KEY (sliceType, sliceKey)
+);`);
+
+/**
  * Table "totalsGrouped" aggregates the durations by project+description and additionally
  * calculates a breakdown of the duration by hour of the day, day of the week, and year
  *
  * type - JSON array of tag strings - TagType[] - @see TagType
- * totalTime - seconds
- * histogramHour - JSON object - { '00': 23134, '01': 4523456, ... } - only includes hours with data
- * histogramDay - JSON object - { '0': 23134, '1': 4523456, ... } - only includes days with data
- *  days start with Monday and represented by 0-6
- * histogramHour - JSON object - { '2022': 23134, '2023': 4523456, ... } - only includes years with data
+ * histType - @see SliceType
+ * hist - JSON object - { '00': 23134, '01': 4523456, ... } - only includes hours with data
  */
 await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsGrouped (
   project TEXT NOT NULL,
   [description] TEXT NOT NULL,
-  [type] TEXT,
-  totalTime INTEGER NOT NULL,
-  histogramHourCount TEXT NOT NULL,
-  histogramDayCount TEXT NOT NULL,
-  histogramMonthCount TEXT NOT NULL,
-  histogramMonthYearCount TEXT NOT NULL,
-  histogramYear TEXT NOT NULL,
-  PRIMARY KEY (project, [description])
+  [type] TEXT NOT NULL,
+  histType TEXT NOT NULL,
+  hist TEXT NOT NULL,
+  PRIMARY KEY (project, [description], histType)
+);`);
+
+/**
+ * Table "totalsProject" aggregates the durations by project+description and additionally
+ * calculates a breakdown of the duration by hour of the day, day of the week, and year
+ *
+ * type - JSON array of tag strings - TagType[] - @see TagType
+ * histType - @see SliceType
+ * hist - JSON object - { '00': 23134, '01': 4523456, ... } - only includes hours with data
+ */
+await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsProject (
+  project TEXT NOT NULL,
+  [type] TEXT NOT NULL,
+  histType TEXT NOT NULL,
+  hist TEXT NOT NULL,
+  PRIMARY KEY (project, histType)
 );`);
 
 /**
@@ -127,27 +169,14 @@ await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsGrouped (
  * calculates a breakdown of the duration by hour of the day, day of the week, and year
  *
  * type - @see TagType
- * totalTime - seconds
- * histogramHour - JSON object - { '00': 23134, '01': 4523456, ... } - only includes hours with data
- * histogramDay - JSON object - { '0': 23134, '1': 4523456, ... } - only includes days with data
- *  days start with Monday and represented by 0-6
- * histogramHour - JSON object - { '2022': 23134, '2023': 4523456, ... } - only includes years with data
+ * histType - @see SliceType
+ * hist - JSON object - { '00': 23134, '01': 4523456, ... } - only includes hours with data
  */
 await db.exec(SQL`CREATE TABLE IF NOT EXISTS totalsTyped (
-  [type] TEXT,
-  totalTime INTEGER NOT NULL,
-  histogramHourCount TEXT NOT NULL,
-  histogramHourYearCount TEXT NOT NULL,
-  histogramHourMonthCount TEXT NOT NULL,
-  histogramHourMonthYearCount TEXT NOT NULL,
-  histogramDayCount TEXT NOT NULL,
-  histogramDayYearCount TEXT NOT NULL,
-  histogramDayMonthCount TEXT NOT NULL,
-  histogramDayMonthYearCount TEXT NOT NULL,
-  histogramMonthYearCount TEXT NOT NULL,
-  histogramMonthCount TEXT NOT NULL,
-  histogramYear TEXT NOT NULL,
-  PRIMARY KEY ([type])
+  [type] TEXT NOT NULL,
+  histType TEXT NOT NULL,
+  hist TEXT NOT NULL,
+  PRIMARY KEY ([type], histType)
 );`);
 
 /**
@@ -450,9 +479,8 @@ INSERT INTO houred
 
 console.log('Finished table: houred');
 
-console.log('Creating table: totalsGrouped');
+console.log('Creating table: cleanedType');
 
-// fill totalsGrouped
 await db.run(SQL`
 WITH DISTINCTTypes AS (
   SELECT DISTINCT project,
@@ -463,230 +491,902 @@ WITH DISTINCTTypes AS (
   GROUP BY project,
     [description],
     [value]
-),
-cleanedType AS (
+)
+INSERT INTO cleanedType
   SELECT project,
     [description],
     json_group_array([value]) AS types
   FROM DISTINCTTypes
   GROUP BY project,
     [description]
-),
-by_hour_count AS (
+`);
+
+console.log('Finished table: cleanedType');
+
+console.log('Creating table: totals');
+
+await db.run(SQL`
+INSERT INTO totals
+  SELECT 'project' AS sliceType,
+    project AS sliceKey,
+    SUM(duration) AS totalTime
+  FROM [raw]
+  GROUP BY project;
+  `);
+
+await db.run(SQL`
+INSERT INTO totals
+  SELECT 'project.description' AS sliceType,
+    project || '|' || [description] AS sliceKey,
+    SUM(duration) AS totalTime
+  FROM [raw]
+  GROUP BY project, 
+    [description];
+  `);
+
+await db.run(SQL`
+INSERT INTO totals
+  SELECT 'type' AS sliceType,
+    types.value AS sliceKey,
+    SUM(r.duration) AS totalTime
+  FROM [raw] r
+    JOIN json_each(r.type) AS types
+  GROUP BY types.value;
+  `);
+
+console.log('Finished table: totals');
+
+console.log('Creating table: totalsGrouped');
+
+await db.run(SQL`
+WITH counted AS (
   SELECT project,
     [description],
-    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS hour,
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
     COUNT(1) AS hourCount
   FROM houred
   GROUP BY project,
     [description],
-    hour
-),
-by_hour_count_g AS (
+    [time]
+)
+INSERT INTO totalsGrouped
+  SELECT b.project,
+    b.description,
+    ct.types AS [type],
+    'hourCount' AS histType,
+    json_group_object([time], hourCount) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+    AND b.description = ct.description
+  GROUP BY b.project,
+    b.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
   SELECT project,
     [description],
-    json_group_object(hour, hourCount) AS histogramHourCount
-  FROM by_hour_count
-  GROUP BY project,
-    [description]
-),
-by_day_count AS (
-  SELECT project,
-    [description],
-    CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [day],
-    COUNT(1) AS dayHourCount,
-    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS dayCount
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
+    COUNT(1) AS hourCount
   FROM houred
   GROUP BY project,
     [description],
-    [day]
-),
-by_day_count_g AS (
-  SELECT project,
-    [description],
-    json_group_object(
-      [day],
-      json_object('count', dayCount, 'hourCount', dayHourCount)
-    ) AS histogramDayCount
-  FROM by_day_count
-  GROUP BY project,
-    [description]
-),
-by_month_year_count AS (
-  SELECT project,
-    [description],
-    strftime('%Y-%m', startdate, 'localtime') AS [month],
-    COUNT(1) AS monthHourCount,
-    COUNT(
-      DISTINCT strftime('%Y-%m', startdate, 'localtime')
-    ) AS monthCount
-  FROM houred
-  GROUP BY project,
-    [description],
-    [month]
-),
-by_month_year_count_g AS (
-  SELECT project,
-    [description],
-    json_group_object(
-      [month],
-      json_object('count', monthCount, 'hourCount', monthHourCount)
-    ) AS histogramMonthYearCount
-  FROM by_month_year_count
-  GROUP BY project,
-    [description]
-),
-by_month_count AS (
-  SELECT project,
-    [description],
-    strftime('%m', startdate, 'localtime') AS [month],
-    COUNT(1) AS monthHourCount,
-    COUNT(DISTINCT strftime('%m', startdate, 'localtime')) AS monthCount
-  FROM houred
-  GROUP BY project,
-    [description],
-    [month]
-),
-by_month_count_g AS (
-  SELECT project,
-    [description],
-    json_group_object(
-      [month],
-      json_object('count', monthCount, 'hourCount', monthHourCount)
-    ) AS histogramMonthCount
-  FROM by_month_count
-  GROUP BY project,
-    [description]
-),
-by_year AS (
-  SELECT project,
-    [description],
-    CAST(strftime('%Y', [start], 'localtime') AS TEXT) AS [year],
-    SUM(duration) AS yearTotal
-  FROM [raw]
-  GROUP BY project,
-    [description],
-    [year]
-),
-by_year_g AS (
-  SELECT project,
-    [description],
-    json_group_object([year], yearTotal) AS histogramYear
-  FROM by_year
-  GROUP BY project,
-    [description],
+    [time],
     [year]
 )
 INSERT INTO totalsGrouped
-  SELECT r.project,
-    r.description,
-    ct.types,
-    SUM(r.duration) AS totaltime,
-    bh.histogramHourCount,
-    bd.histogramDayCount,
-    bmy.histogramMonthYearCount,
-    bm.histogramMonthCount,
-    [by].histogramYear
-  FROM [raw] r
-    INNER JOIN cleanedType ct ON r.project = ct.project
-    AND r.description = ct.description
-    INNER JOIN by_hour_count_g bh ON r.project = bh.project
-    AND r.description = bh.description
-    INNER JOIN by_day_count_g bd ON r.project = bd.project
-    AND r.description = bd.description
-    INNER JOIN by_month_year_count_g bmy ON r.project = bmy.project
-    AND r.description = bmy.description
-    INNER JOIN by_month_count_g bm ON r.project = bm.project
-    AND r.description = bm.description
-    INNER JOIN by_year_g [by] ON r.project = [by].project
-    AND r.description = [by].[description]
-  GROUP BY r.project,
-    r.description
-  ORDER BY r.project,
-    r.description;
+  SELECT c.project,
+      c.description,
+      ct.types AS [type],
+      'hourYearCount' AS histType,
+      json_group_object([year], json(c.hist)) AS hist
+  FROM (
+      SELECT b.project,
+        b.description,
+        [year],
+        json_group_object([time], hourCount) AS hist
+      FROM counted b
+      GROUP BY b.project,
+        b.description,
+        [year]
+    ) c
+    INNER JOIN cleanedType ct ON c.project = ct.project
+    AND c.description = ct.description
+  GROUP BY c.project,
+    c.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    [description],
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
+    COUNT(1) AS hourCount
+  FROM houred
+  GROUP BY project,
+    [description],
+    [time],
+    [month]
+)
+INSERT INTO totalsGrouped
+  SELECT c.project,
+      c.description,
+      ct.types AS [type],
+      'hourMonthCount' AS histType,
+      json_group_object([month], json(c.hist)) AS hist
+  FROM (
+      SELECT b.project,
+        b.description,
+        [month],
+        json_group_object([time], hourCount) AS hist
+      FROM counted b
+      GROUP BY b.project,
+        b.description,
+        [month]
+    ) c
+    INNER JOIN cleanedType ct ON c.project = ct.project
+    AND c.description = ct.description
+  GROUP BY c.project,
+    c.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    [description],
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
+    CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
+    COUNT(1) AS hourCount
+  FROM houred
+  GROUP BY project,
+    [description],
+    [time],
+    [month],
+    [year]
+)
+INSERT INTO totalsGrouped
+  SELECT d.project,
+      d.description,
+      ct.types AS [type],
+      'hourMonthYearCount' AS histType,
+      json_group_object([year], json(d.hist)) AS hist
+  FROM (
+      SELECT c.project,
+        c.description,
+        [year],
+        json_group_object([month], json(c.hist)) AS hist
+      FROM (
+        SELECT b.project,
+          b.description,
+          [month],
+          [year],
+          json_group_object([time], hourCount) AS hist
+        FROM counted b
+        GROUP BY b.project,
+          b.description,
+          [month],
+          [year]
+      ) c
+      GROUP BY c.project,
+        c.description,
+        [year]
+    ) d
+    INNER JOIN cleanedType ct ON d.project = ct.project
+    AND d.description = ct.description
+  GROUP BY d.project,
+    d.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    [description],
+    CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
+    COUNT(1) AS hourCount,
+    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+  FROM houred
+  GROUP BY project,
+    [description],
+    [time]
+)
+INSERT INTO totalsGrouped
+  SELECT b.project,
+    b.description,
+    ct.types AS [type],
+    'dayCount' AS histType,
+    json_group_object(
+      [time],
+      json_object('count', [count], 'hourCount', hourCount)
+    ) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+    AND b.description = ct.description
+  GROUP BY b.project,
+    b.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    [description],
+    CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
+    COUNT(1) AS hourCount,
+    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+  FROM houred
+  GROUP BY project,
+    [description],
+    [time],
+    [year]
+)
+INSERT INTO totalsGrouped
+  SELECT c.project,
+      c.description,
+      ct.types AS [type],
+      'dayYearCount' AS histType,
+      json_group_object([year], json(c.hist)) AS hist
+  FROM (
+      SELECT b.project,
+        b.description,
+        [year],
+        json_group_object(
+          [time],
+          json_object('count', [count], 'hourCount', hourCount)
+        ) AS hist
+      FROM counted b
+      GROUP BY b.project,
+        b.description,
+        [year]
+    ) c
+    INNER JOIN cleanedType ct ON c.project = ct.project
+    AND c.description = ct.description
+  GROUP BY c.project,
+    c.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    [description],
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
+    COUNT(1) AS hourCount,
+    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+  FROM houred
+  GROUP BY project,
+    [description],
+    [time],
+    [month]
+)
+INSERT INTO totalsGrouped
+  SELECT c.project,
+      c.description,
+      ct.types AS [type],
+      'dayMonthCount' AS histType,
+      json_group_object([month], json(c.hist)) AS hist
+  FROM (
+      SELECT b.project,
+        b.description,
+        [month],
+        json_group_object(
+          [time],
+          json_object('count', [count], 'hourCount', hourCount)
+        ) AS hist
+      FROM counted b
+      GROUP BY b.project,
+        b.description,
+        [month]
+    ) c
+    INNER JOIN cleanedType ct ON c.project = ct.project
+    AND c.description = ct.description
+  GROUP BY c.project,
+    c.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    [description],
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
+    CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
+    COUNT(1) AS hourCount,
+    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+  FROM houred
+  GROUP BY project,
+    [description],
+    [time],
+    [month],
+    [year]
+)
+INSERT INTO totalsGrouped
+  SELECT d.project,
+      d.description,
+      ct.types AS [type],
+      'dayMonthYearCount' AS histType,
+      json_group_object([year], json(d.hist)) AS hist
+  FROM (
+      SELECT c.project,
+        c.description,
+        [year],
+        json_group_object([month], json(c.hist)) AS hist
+      FROM (
+        SELECT b.project,
+          b.description,
+          [month],
+          [year],
+          json_group_object(
+            [time],
+            json_object('count', [count], 'hourCount', hourCount)
+          ) AS hist
+        FROM counted b
+        GROUP BY b.project,
+          b.description,
+          [month],
+          [year]
+      ) c
+      GROUP BY c.project,
+        c.description,
+        [year]
+    ) d
+    INNER JOIN cleanedType ct ON d.project = ct.project
+    AND d.description = ct.description
+  GROUP BY d.project,
+    d.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    [description],
+    strftime('%Y-%m', startdate, 'localtime') AS [time],
+    COUNT(1) AS hourCount,
+    COUNT(
+      DISTINCT strftime('%Y-%m', startdate, 'localtime')
+    ) AS [count]
+  FROM houred
+  GROUP BY project,
+    [description],
+    [time]
+)
+INSERT INTO totalsGrouped
+  SELECT b.project,
+    b.description,
+    ct.types AS [type],
+    'monthYearCount' AS histType,
+    json_group_object(
+      [time],
+      json_object('count', [count], 'hourCount', hourCount)
+    ) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+    AND b.description = ct.description
+  GROUP BY b.project,
+    b.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    [description],
+    strftime('%m', startdate, 'localtime') AS [time],
+    COUNT(1) AS hourCount,
+    COUNT(
+      DISTINCT strftime('%m', startdate, 'localtime')
+    ) AS [count]
+  FROM houred
+  GROUP BY project,
+    [description],
+    [time]
+)
+INSERT INTO totalsGrouped
+  SELECT b.project,
+    b.description,
+    ct.types AS [type],
+    'monthCount' AS histType,
+    json_group_object(
+      [time],
+      json_object('count', [count], 'hourCount', hourCount)
+    ) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+    AND b.description = ct.description
+  GROUP BY b.project,
+    b.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    [description],
+    strftime('%Y', startdate, 'localtime') AS [time],
+    COUNT(1) AS hourCount,
+    COUNT(
+      DISTINCT strftime('%Y', startdate, 'localtime')
+    ) AS [count]
+  FROM houred
+  GROUP BY project,
+    [description],
+    [time]
+)
+INSERT INTO totalsGrouped
+  SELECT b.project,
+    b.description,
+    ct.types AS [type],
+    'yearCount' AS histType,
+    json_group_object(
+      [time],
+      json_object('count', [count], 'hourCount', hourCount)
+    ) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+    AND b.description = ct.description
+  GROUP BY b.project,
+    b.description
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    [description],
+    strftime('%Y', startdate, 'localtime') AS [time],
+    SUM(duration) AS totalTime
+  FROM houred
+  GROUP BY project,
+    [description],
+    [time]
+)
+INSERT INTO totalsGrouped
+  SELECT b.project,
+    b.description,
+    ct.types AS [type],
+    'yearSum' AS histType,
+    json_group_object([time], totalTime) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+    AND b.description = ct.description
+  GROUP BY b.project,
+    b.description
 `);
 
 console.log('Finished table: totalsGrouped');
 
-console.log('Creating table: totalsTyped (takes a looong time)');
+console.log('Creating table: totalsProject');
 
-// fills totalsTyped
 await db.run(SQL`
-WITH by_hour_count AS (
+WITH counted AS (
+  SELECT project,
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    COUNT(1) AS hourCount
+  FROM houred
+  GROUP BY project,
+    [time]
+)
+INSERT INTO totalsProject
+  SELECT b.project,
+    ct.types AS [type],
+    'hourCount' AS histType,
+    json_group_object([time], hourCount) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+  GROUP BY b.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
+    COUNT(1) AS hourCount
+  FROM houred
+  GROUP BY project,
+    [time],
+    [year]
+)
+INSERT INTO totalsProject
+  SELECT c.project,
+      ct.types AS [type],
+      'hourYearCount' AS histType,
+      json_group_object([year], json(c.hist)) AS hist
+  FROM (
+      SELECT b.project,
+        [year],
+        json_group_object([time], hourCount) AS hist
+      FROM counted b
+      GROUP BY b.project,
+        [year]
+    ) c
+    INNER JOIN cleanedType ct ON c.project = ct.project
+  GROUP BY c.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
+    COUNT(1) AS hourCount
+  FROM houred
+  GROUP BY project,
+    [time],
+    [month]
+)
+INSERT INTO totalsProject
+  SELECT c.project,
+      ct.types AS [type],
+      'hourMonthCount' AS histType,
+      json_group_object([month], json(c.hist)) AS hist
+  FROM (
+      SELECT b.project,
+        [month],
+        json_group_object([time], hourCount) AS hist
+      FROM counted b
+      GROUP BY b.project,
+        [month]
+    ) c
+    INNER JOIN cleanedType ct ON c.project = ct.project
+  GROUP BY c.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
+    CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
+    COUNT(1) AS hourCount
+  FROM houred
+  GROUP BY project,
+    [time],
+    [month],
+    [year]
+)
+INSERT INTO totalsProject
+  SELECT d.project,
+      ct.types AS [type],
+      'hourMonthYearCount' AS histType,
+      json_group_object([year], json(d.hist)) AS hist
+  FROM (
+      SELECT c.project,
+        [year],
+        json_group_object([month], json(c.hist)) AS hist
+      FROM (
+        SELECT b.project,
+          [month],
+          [year],
+          json_group_object([time], hourCount) AS hist
+        FROM counted b
+        GROUP BY b.project,
+          [month],
+          [year]
+      ) c
+      GROUP BY c.project,
+        [year]
+    ) d
+    INNER JOIN cleanedType ct ON d.project = ct.project
+  GROUP BY d.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
+    COUNT(1) AS hourCount,
+    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+  FROM houred
+  GROUP BY project,
+    [time]
+)
+INSERT INTO totalsProject
+  SELECT b.project,
+    ct.types AS [type],
+    'dayCount' AS histType,
+    json_group_object(
+      [time],
+      json_object('count', [count], 'hourCount', hourCount)
+    ) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+  GROUP BY b.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
+    COUNT(1) AS hourCount,
+    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+  FROM houred
+  GROUP BY project,
+    [time],
+    [year]
+)
+INSERT INTO totalsProject
+  SELECT c.project,
+      ct.types AS [type],
+      'dayYearCount' AS histType,
+      json_group_object([year], json(c.hist)) AS hist
+  FROM (
+      SELECT b.project,
+        [year],
+        json_group_object(
+          [time],
+          json_object('count', [count], 'hourCount', hourCount)
+        ) AS hist
+      FROM counted b
+      GROUP BY b.project,
+        [year]
+    ) c
+    INNER JOIN cleanedType ct ON c.project = ct.project
+  GROUP BY c.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
+    COUNT(1) AS hourCount,
+    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+  FROM houred
+  GROUP BY project,
+    [time],
+    [month]
+)
+INSERT INTO totalsProject
+  SELECT c.project,
+      ct.types AS [type],
+      'dayMonthCount' AS histType,
+      json_group_object([month], json(c.hist)) AS hist
+  FROM (
+      SELECT b.project,
+        [month],
+        json_group_object(
+          [time],
+          json_object('count', [count], 'hourCount', hourCount)
+        ) AS hist
+      FROM counted b
+      GROUP BY b.project,
+        [month]
+    ) c
+    INNER JOIN cleanedType ct ON c.project = ct.project
+  GROUP BY c.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
+    CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
+    COUNT(1) AS hourCount,
+    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+  FROM houred
+  GROUP BY project,
+    [time],
+    [month],
+    [year]
+)
+INSERT INTO totalsProject
+  SELECT d.project,
+      ct.types AS [type],
+      'dayMonthYearCount' AS histType,
+      json_group_object([year], json(d.hist)) AS hist
+  FROM (
+      SELECT c.project,
+        [year],
+        json_group_object([month], json(c.hist)) AS hist
+      FROM (
+        SELECT b.project,
+          [month],
+          [year],
+          json_group_object(
+            [time],
+            json_object('count', [count], 'hourCount', hourCount)
+          ) AS hist
+        FROM counted b
+        GROUP BY b.project,
+          [month],
+          [year]
+      ) c
+      GROUP BY c.project,
+        [year]
+    ) d
+    INNER JOIN cleanedType ct ON d.project = ct.project
+  GROUP BY d.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    strftime('%Y-%m', startdate, 'localtime') AS [time],
+    COUNT(1) AS hourCount,
+    COUNT(
+      DISTINCT strftime('%Y-%m', startdate, 'localtime')
+    ) AS [count]
+  FROM houred
+  GROUP BY project,
+    [time]
+)
+INSERT INTO totalsProject
+  SELECT b.project,
+    ct.types AS [type],
+    'monthYearCount' AS histType,
+    json_group_object(
+      [time],
+      json_object('count', [count], 'hourCount', hourCount)
+    ) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+  GROUP BY b.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    strftime('%m', startdate, 'localtime') AS [time],
+    COUNT(1) AS hourCount,
+    COUNT(
+      DISTINCT strftime('%m', startdate, 'localtime')
+    ) AS [count]
+  FROM houred
+  GROUP BY project,
+    [time]
+)
+INSERT INTO totalsProject
+  SELECT b.project,
+    ct.types AS [type],
+    'monthCount' AS histType,
+    json_group_object(
+      [time],
+      json_object('count', [count], 'hourCount', hourCount)
+    ) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+  GROUP BY b.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    strftime('%Y', startdate, 'localtime') AS [time],
+    COUNT(1) AS hourCount,
+    COUNT(
+      DISTINCT strftime('%Y', startdate, 'localtime')
+    ) AS [count]
+  FROM houred
+  GROUP BY project,
+    [time]
+)
+INSERT INTO totalsProject
+  SELECT b.project,
+    ct.types AS [type],
+    'yearCount' AS histType,
+    json_group_object(
+      [time],
+      json_object('count', [count], 'hourCount', hourCount)
+    ) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+  GROUP BY b.project
+`);
+
+await db.run(SQL`
+WITH counted AS (
+  SELECT project,
+    strftime('%Y', startdate, 'localtime') AS [time],
+    SUM(duration) AS totalTime
+  FROM houred
+  GROUP BY project,
+    [time]
+)
+INSERT INTO totalsProject
+  SELECT b.project,
+    ct.types AS [type],
+    'yearSum' AS histType,
+    json_group_object([time], totalTime) AS hist
+  FROM counted b
+    INNER JOIN cleanedType ct ON b.project = ct.project
+  GROUP BY b.project
+`);
+
+console.log('Finished table: totalsProject');
+
+console.log('Creating table: totalsTyped');
+
+// // fills totalsTyped
+
+await db.run(SQL`
+INSERT INTO totalsTyped
   SELECT [type],
-    json_group_object(hour, hourCount) AS hist
+    'hourCount' AS histType,
+    json_group_object([time], hourCount) AS hist
   FROM (
       SELECT types.value AS [type],
-        CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS hour,
+        CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
         COUNT(1) AS hourCount
       FROM houred
         JOIN json_each(houred.type) AS types
       GROUP BY types.VALUE,
-        hour
+        [time]
     ) b
   GROUP BY b.type
-),
-by_hour_year_count AS (
+`);
+
+await db.run(SQL`
+INSERT INTO totalsTyped
   SELECT [type],
-  json_group_object([year], json(hist)) AS hist
+    'hourYearCount' AS histType,
+    json_group_object([year], json(hist)) AS hist
   FROM (
       SELECT [type],
         [year],
-        json_group_object(hour, hourCount) AS hist
+        json_group_object([time], hourCount) AS hist
       FROM (
           SELECT types.value AS [type],
-            CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS hour,
+            CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
             CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
             COUNT(1) AS hourCount
           FROM houred
             JOIN json_each(houred.type) AS types
           GROUP BY types.VALUE,
             [year],
-            hour
-        ) b
-      GROUP BY b.type,
-        b.year
-    ) c
-  GROUP BY c.type
-),
-by_hour_month_count AS (
+            [time]
+        ) c
+      GROUP BY c.type,
+        c.year
+    ) b
+  GROUP BY b.type
+`);
+
+await db.run(SQL`
+INSERT INTO totalsTyped
   SELECT [type],
+    'hourMonthCount' AS histType,
     json_group_object([month], json(hist)) AS hist
   FROM (
       SELECT [type],
         [month],
-        json_group_object(hour, hourCount) AS hist
+        json_group_object([time], hourCount) AS hist
       FROM (
           SELECT types.value AS [type],
-            CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS hour,
+            CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
             CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
             COUNT(1) AS hourCount
           FROM houred
             JOIN json_each(houred.type) AS types
           GROUP BY types.VALUE,
             [month],
-            hour
-        ) b
-      GROUP BY b.type,
-        b.month
-    ) c
-  GROUP BY c.type
-),
-by_hour_month_year_count AS (
+            [time]
+        ) c
+      GROUP BY c.type,
+        c.month
+    ) b
+  GROUP BY b.type
+`);
+
+await db.run(SQL`
+INSERT INTO totalsTyped
   SELECT [type],
+    'hourMonthYearCount' AS histType,
     json_group_object([year], json(hist)) AS hist
   FROM (
       SELECT [type],
         [year],
+        [month],
         json_group_object([month], json(hist)) AS hist
       FROM (
           SELECT [type],
             [year],
             [month],
-            json_group_object(hour, hourCount) AS hist
+            json_group_object([time], hourCount) AS hist
           FROM (
               SELECT types.value AS [type],
-                CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS hour,
+                CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
                 CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
                 CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
                 COUNT(1) AS hourCount
@@ -695,199 +1395,229 @@ by_hour_month_year_count AS (
               GROUP BY types.VALUE,
                 [year],
                 [month],
-                hour
-            ) b
-          GROUP BY b.type,
-            b.year,
-            b.month
+                [time]
+            ) d
+          GROUP BY d.type,
+            d.year,
+            d.month
         ) c
       GROUP BY c.type,
         c.year
-    ) d
-  GROUP BY d.type
-),
-by_day_count AS (
-  SELECT [type],
-    json_group_object(
-      [day],
-      json_object('count', dayCount, 'hourCount', dayHourCount)
-    ) AS hist
-  FROM (
-      SELECT types.value AS [type],
-        CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [day],
-        COUNT(1) AS dayHourCount,
-        COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS dayCount
-      FROM houred
-        JOIN json_each(houred.type) AS types
-      GROUP BY types.VALUE,
-        [day]
     ) b
   GROUP BY b.type
-),
-by_day_year_count AS (
+`);
+
+await db.run(SQL`
+  INSERT INTO totalsTyped
+    SELECT [type],
+      'dayCount' AS histType,
+      json_group_object(
+        [time], 
+        json_object('count', [count], 'hourCount', [hourCount])
+      ) AS hist
+    FROM (
+        SELECT types.value AS [type],
+          CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
+          COUNT(1) AS hourCount,
+          COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+        FROM houred
+          JOIN json_each(houred.type) AS types
+        GROUP BY types.VALUE,
+          [time]
+      ) b
+    GROUP BY b.type
+  `);
+
+await db.run(SQL`
+INSERT INTO totalsTyped
   SELECT [type],
+    'dayYearCount' AS histType,
     json_group_object([year], json(hist)) AS hist
   FROM (
       SELECT [type],
         [year],
-        json_group_object([day], dayHourCount) AS hist
+        json_group_object(
+          [time], 
+          json_object('count', [count], 'hourCount', [hourCount])
+        ) AS hist
       FROM (
           SELECT types.value AS [type],
-            CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [day],
+            CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
             CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
-            COUNT(1) AS dayHourCount,
-            COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS dayCount
+            COUNT(1) AS hourCount,
+            COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
           FROM houred
             JOIN json_each(houred.type) AS types
           GROUP BY types.VALUE,
             [year],
-            [day]
-        ) b
-      GROUP BY b.type,
-        b.year
-    ) c
-  GROUP BY c.type
-),
-by_day_month_count AS (
+            [time]
+        ) c
+      GROUP BY c.type,
+        c.year
+    ) b
+  GROUP BY b.type
+`);
+
+await db.run(SQL`
+INSERT INTO totalsTyped
   SELECT [type],
+    'dayMonthCount' AS histType,
     json_group_object([month], json(hist)) AS hist
   FROM (
       SELECT [type],
         [month],
-        json_group_object([day], dayHourCount) AS hist
+        json_group_object(
+          [time], 
+          json_object('count', [count], 'hourCount', [hourCount])
+        ) AS hist
       FROM (
           SELECT types.value AS [type],
-            CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [day],
+            CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
             CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
-            COUNT(1) AS dayHourCount,
-            COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS dayCount
+            COUNT(1) AS hourCount,
+            COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
           FROM houred
             JOIN json_each(houred.type) AS types
           GROUP BY types.VALUE,
             [month],
-            [day]
-        ) b
-      GROUP BY b.type,
-        b.month
-    ) c
-  GROUP BY c.type
-),
-by_day_month_year_count AS (
+            [time]
+        ) c
+      GROUP BY c.type,
+        c.month
+    ) b
+  GROUP BY b.type
+`);
+
+await db.run(SQL`
+INSERT INTO totalsTyped
   SELECT [type],
+    'dayMonthYearCount' AS histType,
     json_group_object([year], json(hist)) AS hist
   FROM (
       SELECT [type],
         [year],
+        [month],
         json_group_object([month], json(hist)) AS hist
       FROM (
           SELECT [type],
             [year],
             [month],
-            json_group_object([day], dayHourCount) AS hist
+            json_group_object(
+              [time], 
+              json_object('count', [count], 'hourCount', [hourCount])
+            ) AS hist
           FROM (
               SELECT types.value AS [type],
-                CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [day],
+                CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
                 CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
                 CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
-                COUNT(1) AS dayHourCount,
-                COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS dayCount
+                COUNT(1) AS hourCount,
+                COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
               FROM houred
                 JOIN json_each(houred.type) AS types
               GROUP BY types.VALUE,
                 [year],
                 [month],
-                [day]
-            ) b
-          GROUP BY b.type,
-            b.year,
-            b.month
+                [time]
+            ) d
+          GROUP BY d.type,
+            d.year,
+            d.month
         ) c
       GROUP BY c.type,
         c.year
-    ) d
-  GROUP BY d.type
-),
-by_month_year_count AS (
-  SELECT [type],
-    json_group_object(
-      [month],
-      json_object('count', monthCount, 'hourCount', monthHourCount)
-    ) AS hist
-  FROM (
-      SELECT types.value AS [type],
-        CAST(
-          strftime('%Y-%m', startdate, 'localtime') AS TEXT
-        ) AS [month],
-        COUNT(1) AS monthHourCount,
-        COUNT(DISTINCT [start]) AS monthCount
-      FROM houred
-        JOIN json_each(houred.type) AS types
-      GROUP BY types.VALUE,
-        [month]
     ) b
   GROUP BY b.type
-),
-by_month_count AS (
-  SELECT [type],
-    json_group_object(
-      [month],
-      json_object('count', monthCount, 'hourCount', monthHourCount)
-    ) AS hist
-  FROM (
-      SELECT types.value AS [type],
-        CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
-        COUNT(1) AS monthHourCount,
-        COUNT(DISTINCT [start]) AS monthCount
-      FROM houred
-        JOIN json_each(houred.type) AS types
-      GROUP BY types.VALUE,
-        [month]
-    ) b
-  GROUP BY b.type
-),
-by_year AS (
-  SELECT type,
-    json_group_object([year], yearTotal) AS hist
-  FROM (
-      SELECT types.value AS type,
-        CAST(strftime('%Y', start, 'localtime') AS TEXT) AS [year],
-        SUM(duration) AS yearTotal
-      FROM [raw]
-        JOIN json_each([raw].type) AS types
-      GROUP BY types.VALUE,
-        [year]
-    ) b
-  GROUP BY b.type
-)
-INSERT INTO totalsTyped
-  SELECT types.value AS type,
-    SUM(r.duration) AS totalTime,
-    hc.hist as histogramHourCount,
-    hyc.hist as histogramHourYearCount,
-    hmc.hist as histogramHourMonthCount,
-    hmyc.hist as histogramHourMonthYearCount,
-    d.hist as histogramDayCount,
-    dy.hist as histogramDayYearCount,
-    dm.hist as histogramDayMonthCount,
-    dmy.hist as histogramDayMontYearCount,
-    m.hist as histogramMonthCount,
-    my.hist as histogramMonthYearCount,
-    b.hist as histogramYear
-  FROM [raw] r
-    JOIN json_each(r.type) AS types
-    JOIN by_hour_count hc ON types.value = hc.type
-    JOIN by_hour_year_count hyc ON types.value = hyc.type
-    JOIN by_hour_month_count hmc ON types.value = hmc.type
-    JOIN by_hour_month_year_count hmyc ON types.value = hmyc.type
-    JOIN by_day_count d ON types.value = d.type
-    JOIN by_day_year_count dy ON types.value = dy.type
-    JOIN by_day_month_count dm ON types.value = dm.type
-    JOIN by_day_year_count dmy ON types.value = dmy.type
-    JOIN by_month_count m ON types.value = m.type
-    JOIN by_month_year_count my ON types.value = my.type
-    JOIN by_year b ON types.value = b.type
-  GROUP BY types.value;
 `);
+
+await db.run(SQL`
+  INSERT INTO totalsTyped
+    SELECT [type],
+      'monthCount' AS histType,
+      json_group_object(
+        [time], 
+        json_object('count', [count], 'hourCount', [hourCount])
+      ) AS hist
+    FROM (
+        SELECT types.value AS [type],
+          CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [time],
+          COUNT(1) AS hourCount,
+          COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+        FROM houred
+          JOIN json_each(houred.type) AS types
+        GROUP BY types.VALUE,
+          [time]
+      ) b
+    GROUP BY b.type
+  `);
+
+await db.run(SQL`
+INSERT INTO totalsTyped
+  SELECT [type],
+    'monthYearCount' AS histType,
+    json_group_object([year], json(hist)) AS hist
+  FROM (
+      SELECT [type],
+        [year],
+        json_group_object(
+          [time], 
+          json_object('count', [count], 'hourCount', [hourCount])
+        ) AS hist
+      FROM (
+          SELECT types.value AS [type],
+            CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [time],
+            CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
+            COUNT(1) AS hourCount,
+            COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+          FROM houred
+            JOIN json_each(houred.type) AS types
+          GROUP BY types.VALUE,
+            [year],
+            [time]
+        ) c
+      GROUP BY c.type,
+        c.year
+    ) b
+  GROUP BY b.type
+`);
+
+await db.run(SQL`
+  INSERT INTO totalsTyped
+    SELECT [type],
+      'yearCount' AS histType,
+      json_group_object(
+        [time], 
+        json_object('count', [count], 'hourCount', [hourCount])
+      ) AS hist
+    FROM (
+        SELECT types.value AS [type],
+          CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [time],
+          COUNT(1) AS hourCount,
+          COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
+        FROM houred
+          JOIN json_each(houred.type) AS types
+        GROUP BY types.VALUE,
+          [time]
+      ) b
+    GROUP BY b.type
+  `);
+
+await db.run(SQL`
+  INSERT INTO totalsTyped
+    SELECT [type],
+      'yearSum' AS histType,
+      json_group_object([time], totalTime) AS hist
+    FROM (
+        SELECT types.value AS [type],
+          CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [time],
+          SUM(duration) AS totalTime
+        FROM houred
+          JOIN json_each(houred.type) AS types
+        GROUP BY types.VALUE,
+          [time]
+      ) b
+    GROUP BY b.type
+  `);
 
 console.log('Finished table: totalsTyped');
 
@@ -908,7 +1638,7 @@ INSERT INTO totalsTime
   GROUP BY timeValue;
 `);
 
-// fills totalsTime - hourYear - HH_YYYY
+// fills totalsTime - hourYear - YYYY_HH
 await db.run(SQL`
 INSERT INTO totalsTime
   SELECT 'hourYear' AS timeType,
@@ -968,7 +1698,7 @@ INSERT INTO totalsTime
   GROUP BY timeValue;
 `);
 
-// fills totalsTime - hourDayWeekMonthYear - %Y-MM_0-6_HH
+// fills totalsTime - hourDayWeekMonthYear - YYYY-MM_0-6_HH
 await db.run(SQL`
 INSERT INTO totalsTime
   SELECT 'hourDayWeekMonthYear' AS timeType,
@@ -993,7 +1723,7 @@ await db.run(SQL`
 INSERT INTO totalsTime
   SELECT 'dayWeek' AS timeType,
     strftime('%w', startdate, 'localtime') AS timeValue,
-    COUNT(duration) AS totalTime
+    COUNT(1) AS totalTime
   FROM houred
   GROUP BY timeValue;
 `);
@@ -1003,7 +1733,7 @@ await db.run(SQL`
 INSERT INTO totalsTime
   SELECT 'dayWeekYear' AS timeType,
     strftime('%Y_%w', startdate, 'localtime') AS timeValue,
-    COUNT(duration) AS totalTime
+    COUNT(1) AS totalTime
   FROM houred
   GROUP BY timeValue;
 `);
@@ -1013,7 +1743,7 @@ await db.run(SQL`
 INSERT INTO totalsTime
   SELECT 'dayWeekMonth' AS timeType,
     strftime('%m_%w', startdate, 'localtime') AS timeValue,
-    COUNT(duration) AS totalTime
+    COUNT(1) AS totalTime
   FROM houred
   GROUP BY timeValue;
 `);
@@ -1023,7 +1753,7 @@ await db.run(SQL`
 INSERT INTO totalsTime
   SELECT 'dayWeekMonthYear' AS timeType,
     strftime('%Y-%m_%w', startdate, 'localtime') AS timeValue,
-    COUNT(duration) AS totalTime
+    COUNT(1) AS totalTime
   FROM houred
   GROUP BY timeValue;
 `);

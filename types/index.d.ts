@@ -1,4 +1,11 @@
-import { possibleTagType, possibleTimeType } from '../common/enums';
+import {
+  possibleSliceType,
+  possibleTagType,
+  possibleTimeType,
+  possibleTotalsType,
+} from '../common/enums';
+
+type Extends<T, U extends T> = U;
 
 // I put these here so that the types are globally available within the project
 // specifically so that both the app and the scripts are dealing with the exact same types
@@ -29,6 +36,14 @@ declare global {
 
   type TagType = (typeof possibleTagType)[number];
 
+  type SliceType = (typeof possibleSliceType)[number];
+
+  type TotalsType = (typeof possibleTotalsType)[number];
+
+  type Project = string;
+
+  type Description = string;
+
   type HistogramComplexValue = {
     count: number;
     hourCount: number;
@@ -36,7 +51,10 @@ declare global {
 
   type HistogramValue = HistogramComplexValue | number;
 
-  type Histogram<T extends HistogramValue> = Record<string, T>;
+  type Histogram<K extends string, T extends HistogramValue> = Record<
+    K,
+    T | undefined
+  >;
 
   type FinalTimeValue =
     | {
@@ -46,31 +64,53 @@ declare global {
       }
     | Record<string, never>;
 
-  type FinalTypeValue =
-    | {
-        type: string;
-        total: number;
-        histogramHourCount: Histogram<number>;
-        histogramDayCount: Histogram<HistogramComplexValue>;
-        histogramMonthCount: Histogram<HistogramComplexValue>;
-        histogramMonthYearCount: Histogram<HistogramComplexValue>;
-        histogramYear: Histogram<number>;
-      }
-    | Record<string, never>;
-
-  type FinalGroupedValue =
-    | {
-        project: string;
-        description: string;
-        type: TagType[];
-        total: number;
-        histogramHourCount: Histogram<number>;
-        histogramDayCount: Histogram<HistogramComplexValue>;
-        histogramMonthCount: Histogram<HistogramComplexValue>;
-        histogramMonthYearCount: Histogram<HistogramComplexValue>;
-        histogramYear: Histogram<number>;
-      }
-    | Record<string, never>;
+  type FinalBySlice = Extends<
+    { [key in SliceType]: string },
+    {
+      hourCount: Histogram<`${number}`, number | undefined>;
+      hourYearCount: Histogram<
+        `${number}`,
+        Histogram<`${number}`, number | undefined> | undefined
+      >;
+      hourMonthCount: Histogram<
+        `${number}`,
+        Histogram<`${number}`, number | undefined> | undefined
+      >;
+      hourMonthYearCount: Histogram<
+        `${number}`,
+        | Histogram<
+            `${number}`,
+            Histogram<`${number}`, number | undefined> | undefined
+          >
+        | undefined
+      >;
+      dayCount: Histogram<`${number}`, HistogramComplexValue | undefined>;
+      dayYearCount: Histogram<
+        `${number}`,
+        Histogram<`${number}`, HistogramComplexValue | undefined> | undefined
+      >;
+      dayMonthCount: Histogram<
+        `${number}`,
+        Histogram<`${number}`, HistogramComplexValue | undefined> | undefined
+      >;
+      dayMonthYearCount: Histogram<
+        `${number}`,
+        | Histogram<
+            `${number}`,
+            | Histogram<`${number}`, HistogramComplexValue | undefined>
+            | undefined
+          >
+        | undefined
+      >;
+      monthCount: Histogram<`${number}`, HistogramComplexValue | undefined>;
+      monthYearCount: Histogram<
+        `${number}`,
+        Histogram<`${number}`, HistogramComplexValue | undefined> | undefined
+      >;
+      yearCount: Histogram<`${number}`, HistogramComplexValue | undefined>;
+      yearSum: Histogram<`${number}`, number | undefined>;
+    }
+  >;
 
   type FinalByTime =
     | {
@@ -78,15 +118,26 @@ declare global {
       }
     | Record<string, never>;
 
-  type FinalByType =
-    | {
-        [key in TagType]: FinalTypeValue;
-      }
-    | Record<string, never>;
+  type FinalByType = {
+    [key in TagType]?: FinalBySlice;
+  };
 
-  type FinalByGroup =
-    | Record<string, Record<string, FinalGroupedValue>>
-    | Record<string, never>;
+  type FinalByGroupRecord = FinalBySlice & {
+    type: TagType[];
+    project: Project;
+    description: Description;
+  };
+
+  type FinalByProjectRecord = FinalBySlice & {
+    type: TagType[];
+    project: Project;
+  };
+
+  type FinalByGroup = Record<Project, Record<Description, FinalByGroupRecord>>;
+
+  type FinalByGroup = Record<Project, FinalByProjectRecord>;
+
+  type TotalsByType = Record<TagType, number>;
 
   type JSONData = {
     byTime: {
@@ -95,9 +146,15 @@ declare global {
     };
     byType: {
       all: FinalByType;
+      totals: TotalsByType;
     };
     byGroup: {
       all: FinalByGroup;
+      totals: Record<string, number>;
+    };
+    byProject: {
+      all: FinalByProject;
+      totals: Record<Project, number>;
     };
   };
 }

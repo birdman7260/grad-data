@@ -1,8 +1,8 @@
 import Chart from 'react-apexcharts';
 
-type HistogramData = {
+export type HistogramData = {
   name: string;
-  hist: Histogram<number>;
+  hist: Histogram<string, number>;
 };
 
 type HistogramProps = {
@@ -25,6 +25,11 @@ function Histogram({
       (max, c) => {
         const a = max[0].hist[key];
         const b = c.hist[key];
+
+        if (a === undefined || b === undefined) {
+          throw new Error(`every histogram element must be filled`);
+        }
+
         if (a > b) return max;
         if (b > a) return [c];
         return [max, c].flat();

@@ -3,7 +3,11 @@ import { addWeeks, format as formatDate } from 'date-fns';
 import { open } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import SQL from 'sql-template-strings';
-import { possibleTagType, possibleTimeType } from '../common/enums';
+import {
+  possibleSliceType,
+  possibleTagType,
+  possibleTimeType,
+} from '../common/enums';
 
 const db = await open({
   filename: 'sqlite/grad-data.db',
@@ -19,9 +23,21 @@ type ITopByTimeQuery<T extends TimeType, Y extends string> = {
 
 type TopByTimeQuery =
   | ITopByTimeQuery<'hour', `${number}`>
+  | ITopByTimeQuery<'hourYear', `${number}_${number}`>
+  | ITopByTimeQuery<'hourMonth', `${number}_${number}`>
+  | ITopByTimeQuery<'hourMonthYear', `${number}-${number}_${number}`>
   | ITopByTimeQuery<'hourDayWeek', `${number}_${number}`>
+  | ITopByTimeQuery<'hourDayWeekYear', `${number}_${number}_${number}`>
+  | ITopByTimeQuery<'hourDayWeekMonth', `${number}_${number}_${number}`>
+  | ITopByTimeQuery<
+      'hourDayWeekMonthYear',
+      `${number}-${number}_${number}_${number}`
+    >
   | ITopByTimeQuery<'day', `${number}-${number}-${number}`>
   | ITopByTimeQuery<'dayWeek', `${number}`>
+  | ITopByTimeQuery<'dayWeekYear', `${number}_${number}`>
+  | ITopByTimeQuery<'dayWeekMonth', `${number}_${number}`>
+  | ITopByTimeQuery<'dayWeekMonthYear', `${number}-${number}_${number}`>
   | ITopByTimeQuery<'month', `${number}`>
   | ITopByTimeQuery<'monthYear', `${number}-${number}`>
   | ITopByTimeQuery<'week', `${number}_${number}`>
@@ -36,24 +52,29 @@ type AllByTimeQuery = {
 
 type AllByTypeQuery = {
   type: TagType;
-  totalTime: number;
-  histogramHourCount: string;
-  histogramDayCount: string;
-  histogramMonthCount: string;
-  histogramMonthYearCount: string;
-  histogramYear: string;
+  histType: SliceType;
+  hist: string;
 };
 
 type AllGroupedQuery = {
   project: string;
   description: string;
   type: string;
+  histType: SliceType;
+  hist: string;
+};
+
+type AllProjectQuery = {
+  project: string;
+  type: string;
+  histType: SliceType;
+  hist: string;
+};
+
+type TotalsQuery = {
+  sliceType: TotalsType;
+  sliceKey: string;
   totalTime: number;
-  histogramHourCount: string;
-  histogramDayCount: string;
-  histogramMonthCount: string;
-  histogramMonthYearCount: string;
-  histogramYear: string;
 };
 
 const final: JSONData = {
@@ -68,13 +89,28 @@ const final: JSONData = {
     }, {}),
   },
   byType: {
-    all: possibleTagType.reduce<FinalByType>((pv, v: TagType) => {
-      pv[v] = {};
+    all: possibleTagType.reduce<Partial<FinalByType>>((pv, v: TagType) => {
+      pv[v] = possibleSliceType.reduce<Partial<FinalBySlice>>(
+        (pv2, v2: SliceType) => {
+          pv2[v2] = {};
+          return pv2;
+        },
+        {},
+      ) as FinalBySlice;
       return pv;
-    }, {}),
+    }, {}) as FinalByType,
+    totals: possibleTagType.reduce<Partial<TotalsByType>>((pv, v: TagType) => {
+      pv[v] = 0;
+      return pv;
+    }, {}) as TotalsByType,
   },
   byGroup: {
     all: {},
+    totals: {},
+  },
+  byProject: {
+    all: {},
+    totals: {},
   },
 };
 
@@ -193,23 +229,12 @@ FROM totalsTyped
   (err, row) => {
     if (err) throw new Error(`Failed when getting all by type: ${err}`);
 
-    final.byType.all[row.type] = {
-      total: row.totalTime,
-      type: row.type,
-      histogramHourCount: JSON.parse(
-        row.histogramHourCount,
-      ) as Histogram<number>,
-      histogramDayCount: JSON.parse(
-        row.histogramDayCount,
-      ) as Histogram<HistogramComplexValue>,
-      histogramMonthCount: JSON.parse(
-        row.histogramMonthCount,
-      ) as Histogram<HistogramComplexValue>,
-      histogramMonthYearCount: JSON.parse(
-        row.histogramMonthYearCount,
-      ) as Histogram<HistogramComplexValue>,
-      histogramYear: JSON.parse(row.histogramYear) as Histogram<number>,
-    };
+    if (final.byType.all[row.type] === undefined) {
+      final.byType.all[row.type] = {} as FinalBySlice;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    final.byType.all[row.type]![row.histType] = JSON.parse(row.hist);
   },
 );
 
@@ -224,26 +249,63 @@ FROM totalsGrouped
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (final.byGroup.all[row.project] === undefined)
       final.byGroup.all[row.project] = {};
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (final.byGroup.all[row.project][row.description] === undefined)
+      final.byGroup.all[row.project][row.description] = {
+        project: row.project,
+        description: row.description,
+        type: JSON.parse(row.type) as TagType[],
+      } as unknown as FinalByGroupRecord;
 
-    final.byGroup.all[row.project][row.description] = {
-      project: row.description,
-      description: row.description,
-      type: JSON.parse(row.type) as TagType[],
-      total: row.totalTime,
-      histogramHourCount: JSON.parse(
-        row.histogramHourCount,
-      ) as Histogram<number>,
-      histogramDayCount: JSON.parse(
-        row.histogramDayCount,
-      ) as Histogram<HistogramComplexValue>,
-      histogramMonthCount: JSON.parse(
-        row.histogramMonthCount,
-      ) as Histogram<HistogramComplexValue>,
-      histogramMonthYearCount: JSON.parse(
-        row.histogramMonthYearCount,
-      ) as Histogram<HistogramComplexValue>,
-      histogramYear: JSON.parse(row.histogramYear) as Histogram<number>,
-    };
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    final.byGroup.all[row.project][row.description][row.histType] = JSON.parse(
+      row.hist,
+    );
+  },
+);
+
+const allByProjectRowCount = await db.each<AllProjectQuery>(
+  SQL`
+SELECT *
+FROM totalsProject
+`,
+  (err, row) => {
+    if (err) throw new Error(`Failed when getting all by type: ${err}`);
+
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (final.byProject.all[row.project] === undefined)
+      final.byProject.all[row.project] = {};
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (final.byProject.all[row.project] === undefined)
+      final.byProject.all[row.project] = {
+        project: row.project,
+        type: JSON.parse(row.type) as TagType[],
+      } as unknown as FinalByProjectRecord;
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    final.byProject.all[row.project][row.histType] = JSON.parse(row.hist);
+  },
+);
+
+const totalsCount = await db.each<TotalsQuery>(
+  SQL`
+SELECT *
+FROM totals
+`,
+  (err, row) => {
+    if (err) throw new Error(`Failed when getting all by type: ${err}`);
+
+    switch (row.sliceType) {
+      case 'project':
+        final.byProject.totals[row.sliceKey] = row.totalTime;
+        break;
+      case 'project.description':
+        final.byGroup.totals[row.sliceKey] = row.totalTime;
+        break;
+      case 'type':
+        final.byType.totals[row.sliceKey as TagType] = row.totalTime;
+        break;
+    }
   },
 );
 
@@ -254,3 +316,5 @@ fs.writeFileSync('public/data.json', JSON.stringify(final), 'utf-8');
 console.log(`time row count: ${allTimeRowCount}`);
 console.log(`type row count: ${allByTypeRowCount}`);
 console.log(`grouped row count: ${allByGroupRowCount}`);
+console.log(`project row count: ${allByProjectRowCount}`);
+console.log(`totals row count: ${totalsCount}`);

@@ -47,6 +47,8 @@ function labelTransform(radius: number, d?: Coord) {
   return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
 }
 
+// TODO: show the total value in the center of the chart, changing to the selected project total
+// TODO: change the values to be readable
 export default function Sunburst({ data }: SunburstProps) {
   // Specify the chart's dimensions.
   const width = 928;

@@ -90,3 +90,10 @@ ideas for pages:
     - year
   - show histogram of above, but choose the max type for each part
   - another of that but use project instead?
+
+ideas for charts:
+  would a sunburst for types look good?
+    would need to go through all of the byGroup data and search for the correct types. Could start with byProject first...
+
+TODO:
+  Need to do another slice dimension: hourDay, hourDayYear, hourDayMonth, hourDayMonthYear
