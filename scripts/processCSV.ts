@@ -751,7 +751,7 @@ await db.run(SQL`
 WITH counted AS (
   SELECT project,
     [description],
-    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
     CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
     COUNT(1) AS hourCount,
     COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
@@ -790,7 +790,7 @@ await db.run(SQL`
 WITH counted AS (
   SELECT project,
     [description],
-    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
     CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
     CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
     COUNT(1) AS hourCount,
@@ -1128,7 +1128,7 @@ INSERT INTO totalsProject
 await db.run(SQL`
 WITH counted AS (
   SELECT project,
-    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
     CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
     COUNT(1) AS hourCount,
     COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
@@ -1160,7 +1160,7 @@ INSERT INTO totalsProject
 await db.run(SQL`
 WITH counted AS (
   SELECT project,
-    CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
     CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
     CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
     COUNT(1) AS hourCount,
@@ -1508,7 +1508,7 @@ INSERT INTO totalsTyped
             ) AS hist
           FROM (
               SELECT types.value AS [type],
-                CAST(strftime('%H', startdate, 'localtime') AS TEXT) AS [time],
+                CAST(strftime('%w', startdate, 'localtime') AS TEXT) AS [time],
                 CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [month],
                 CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
                 COUNT(1) AS hourCount,
