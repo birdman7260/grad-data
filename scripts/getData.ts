@@ -233,7 +233,6 @@ FROM totalsTyped
       final.byType.all[row.type] = {} as FinalBySlice;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     final.byType.all[row.type]![row.histType] = JSON.parse(row.hist);
   },
 );
@@ -246,10 +245,9 @@ FROM totalsGrouped
   (err, row) => {
     if (err) throw new Error(`Failed when getting all by type: ${err}`);
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (final.byGroup.all[row.project] === undefined)
       final.byGroup.all[row.project] = {};
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
     if (final.byGroup.all[row.project][row.description] === undefined)
       final.byGroup.all[row.project][row.description] = {
         project: row.project,
@@ -257,7 +255,6 @@ FROM totalsGrouped
         type: JSON.parse(row.type) as TagType[],
       } as unknown as FinalByGroupRecord;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     final.byGroup.all[row.project][row.description][row.histType] = JSON.parse(
       row.hist,
     );
@@ -272,17 +269,15 @@ FROM totalsProject
   (err, row) => {
     if (err) throw new Error(`Failed when getting all by type: ${err}`);
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (final.byProject.all[row.project] === undefined)
       final.byProject.all[row.project] = {};
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
     if (final.byProject.all[row.project] === undefined)
       final.byProject.all[row.project] = {
         project: row.project,
         type: JSON.parse(row.type) as TagType[],
       } as unknown as FinalByProjectRecord;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     final.byProject.all[row.project][row.histType] = JSON.parse(row.hist);
   },
 );
