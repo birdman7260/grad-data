@@ -135,7 +135,7 @@ declare global {
 
   type FinalByGroup = Record<Project, Record<Description, FinalByGroupRecord>>;
 
-  type FinalByGroup = Record<Project, FinalByProjectRecord>;
+  type FinalByProject = Record<Project, FinalByProjectRecord>;
 
   type TotalsByType = Record<TagType, number>;
 

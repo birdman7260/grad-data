@@ -377,6 +377,8 @@ const processFile = async (file: string) => {
         );
         const duration = differenceInSeconds(end, start);
 
+        if (project === '' && description === 'Exercise') project = 'Exercise';
+
         description = cleanDescription(project, description);
 
         const type = createTags(project, description);
@@ -842,30 +844,39 @@ await db.run(SQL`
 WITH counted AS (
   SELECT project,
     [description],
-    strftime('%Y-%m', startdate, 'localtime') AS [time],
+    CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
     COUNT(1) AS hourCount,
-    COUNT(
-      DISTINCT strftime('%Y-%m', startdate, 'localtime')
-    ) AS [count]
+    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
   FROM houred
   GROUP BY project,
     [description],
-    [time]
+    [time],
+    [year]
 )
 INSERT INTO totalsGrouped
-  SELECT b.project,
-    b.description,
-    ct.types AS [type],
-    'monthYearCount' AS histType,
-    json_group_object(
-      [time],
-      json_object('count', [count], 'hourCount', hourCount)
-    ) AS hist
-  FROM counted b
-    INNER JOIN cleanedType ct ON b.project = ct.project
-    AND b.description = ct.description
-  GROUP BY b.project,
-    b.description
+  SELECT c.project,
+      c.description,
+      ct.types AS [type],
+      'monthYearCount' AS histType,
+      json_group_object([year], json(c.hist)) AS hist
+  FROM (
+      SELECT b.project,
+        b.description,
+        [year],
+        json_group_object(
+          [time],
+          json_object('count', [count], 'hourCount', hourCount)
+        ) AS hist
+      FROM counted b
+      GROUP BY b.project,
+        b.description,
+        [year]
+    ) c
+    INNER JOIN cleanedType ct ON c.project = ct.project
+    AND c.description = ct.description
+  GROUP BY c.project,
+    c.description
 `);
 
 await db.run(SQL`
@@ -875,7 +886,7 @@ WITH counted AS (
     strftime('%m', startdate, 'localtime') AS [time],
     COUNT(1) AS hourCount,
     COUNT(
-      DISTINCT strftime('%m', startdate, 'localtime')
+      DISTINCT strftime('%F', startdate, 'localtime')
     ) AS [count]
   FROM houred
   GROUP BY project,
@@ -905,7 +916,7 @@ WITH counted AS (
     strftime('%Y', startdate, 'localtime') AS [time],
     COUNT(1) AS hourCount,
     COUNT(
-      DISTINCT strftime('%Y', startdate, 'localtime')
+      DISTINCT strftime('%F', startdate, 'localtime')
     ) AS [count]
   FROM houred
   GROUP BY project,
@@ -1203,26 +1214,33 @@ INSERT INTO totalsProject
 await db.run(SQL`
 WITH counted AS (
   SELECT project,
-    strftime('%Y-%m', startdate, 'localtime') AS [time],
+    CAST(strftime('%m', startdate, 'localtime') AS TEXT) AS [time],
+    CAST(strftime('%Y', startdate, 'localtime') AS TEXT) AS [year],
     COUNT(1) AS hourCount,
-    COUNT(
-      DISTINCT strftime('%Y-%m', startdate, 'localtime')
-    ) AS [count]
+    COUNT(DISTINCT strftime('%F', startdate, 'localtime')) AS [count]
   FROM houred
   GROUP BY project,
-    [time]
+    [time],
+    [year]
 )
 INSERT INTO totalsProject
-  SELECT b.project,
-    ct.types AS [type],
-    'monthYearCount' AS histType,
-    json_group_object(
-      [time],
-      json_object('count', [count], 'hourCount', hourCount)
-    ) AS hist
-  FROM counted b
-    INNER JOIN cleanedType ct ON b.project = ct.project
-  GROUP BY b.project
+  SELECT c.project,
+      ct.types AS [type],
+      'monthYearCount' AS histType,
+      json_group_object([year], json(c.hist)) AS hist
+  FROM (
+      SELECT b.project,
+        [year],
+        json_group_object(
+          [time],
+          json_object('count', [count], 'hourCount', hourCount)
+        ) AS hist
+      FROM counted b
+      GROUP BY b.project,
+        [year]
+    ) c
+    INNER JOIN cleanedType ct ON c.project = ct.project
+  GROUP BY c.project
 `);
 
 await db.run(SQL`
@@ -1231,7 +1249,7 @@ WITH counted AS (
     strftime('%m', startdate, 'localtime') AS [time],
     COUNT(1) AS hourCount,
     COUNT(
-      DISTINCT strftime('%m', startdate, 'localtime')
+      DISTINCT strftime('%F', startdate, 'localtime')
     ) AS [count]
   FROM houred
   GROUP BY project,
@@ -1256,7 +1274,7 @@ WITH counted AS (
     strftime('%Y', startdate, 'localtime') AS [time],
     COUNT(1) AS hourCount,
     COUNT(
-      DISTINCT strftime('%Y', startdate, 'localtime')
+      DISTINCT strftime('%F', startdate, 'localtime')
     ) AS [count]
   FROM houred
   GROUP BY project,

@@ -270,9 +270,6 @@ FROM totalsProject
     if (err) throw new Error(`Failed when getting all by type: ${err}`);
 
     if (final.byProject.all[row.project] === undefined)
-      final.byProject.all[row.project] = {};
-
-    if (final.byProject.all[row.project] === undefined)
       final.byProject.all[row.project] = {
         project: row.project,
         type: JSON.parse(row.type) as TagType[],
