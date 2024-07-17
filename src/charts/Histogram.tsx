@@ -9,14 +9,14 @@ type HistogramProps = {
   data: HistogramData[];
   histoKeys: string[];
   xFormatter?: (val: string) => string;
-  YFormatter?: (val: number) => string;
+  YFormatter?: (val: number) => string | undefined;
 };
 
 function Histogram({
   data,
   histoKeys: keys,
   xFormatter = (val) => val,
-  YFormatter = (val) => `${val}`,
+  YFormatter = (val) => (val === 0 ? undefined : `${val}`),
 }: HistogramProps) {
   const stagedSeries = keys.reduce<
     Record<string, Record<string, ChartDataTypeFull | undefined> | undefined>
@@ -51,6 +51,12 @@ function Histogram({
     ApexAxisChartSeries<ChartDataType>
   >((pv, [name, c]) => {
     const data = [];
+
+    // make sure that the item at least has some data, filter out if not
+    if (Object.values(c ?? {}).every((v) => v === undefined || v.y === 0)) {
+      return pv;
+    }
+
     for (const key of keys) {
       data.push(
         c?.[key] ?? {
@@ -66,6 +72,7 @@ function Histogram({
     });
     return pv;
   }, []);
+
   return (
     <div>
       <Chart

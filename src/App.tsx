@@ -35,9 +35,9 @@ function App() {
   const maxYearData = data.byTime.top.year[0];
   const maxYear = parseInt(maxYearData.originalTime);
 
-  const hourData = makeHistogramData('hourCount', data.byType.all);
+  const hourCount = makeHistogramData('hourCount', data.byType.all);
 
-  const dayData = makeHistogramData('dayCount', data.byType.all);
+  const dayCount = makeHistogramData('dayCount', data.byType.all);
   // const hourMonthCount = makeHistogramData('hourMonthCount', data.byType.all);
   // const hourYearCount = makeHistogramData('hourYearCount', data.byType.all);
   // const hourMonthYearCount = makeHistogramData('hourMonthYearCount', data.byType.all);
@@ -57,6 +57,33 @@ function App() {
   });
   const yearCount = makeHistogramData('yearCount', data.byType.all);
   const yearSum = makeHistogramData('yearSum', data.byType.all);
+
+  const hourCountGrouped = makeHistogramData('hourCount', data.byGroup.all);
+
+  const dayCountGrouped = makeHistogramData('dayCount', data.byGroup.all);
+  // const hourMonthCount = makeHistogramData('hourMonthCount', data.byType.all);
+  // const hourYearCount = makeHistogramData('hourYearCount', data.byType.all);
+  // const hourMonthYearCount = makeHistogramData('hourMonthYearCount', data.byType.all);
+  // const dayYearCount = makeHistogramData('dayYearCount', data.byType.all);
+  // const dayMonthCount = makeHistogramData('dayMonthCount', data.byType.all);
+  const dayMonthYearCountGrouped = makeHistogramData(
+    'dayMonthYearCount',
+    data.byGroup.all,
+    {
+      year: '2024',
+      month: '04',
+    },
+  );
+  const monthCountGrouped = makeHistogramData('monthCount', data.byGroup.all);
+  const monthYearCountGrouped = makeHistogramData(
+    'monthYearCount',
+    data.byGroup.all,
+    {
+      year: '2024',
+    },
+  );
+  const yearCountGrouped = makeHistogramData('yearCount', data.byGroup.all);
+  const yearSumGrouped = makeHistogramData('yearSum', data.byGroup.all);
 
   const datum: Datum = {
     name: 'All',
@@ -89,7 +116,7 @@ function App() {
           </div>
         </div>
         <Histogram
-          data={dayData}
+          data={dayCountGrouped}
           histoKeys={days}
           xFormatter={(val) =>
             formatDate(addDays(startOfWeek(Date.now()), parseInt(val)), 'iiii')
@@ -109,7 +136,152 @@ function App() {
           </div>
         </div>
         <Histogram
-          data={hourData}
+          data={hourCountGrouped}
+          histoKeys={hours}
+          xFormatter={(val) =>
+            formatDate(addHours(startOfDay(Date.now()), parseInt(val)), 'haaa')
+          }
+        />
+      </div>
+      <div>
+        <div className='hero bg-base-200'>
+          <div className='hero-content text-center'>
+            <div className='max-w-md'>
+              <h1 className='text-5xl font-bold'>Day of week</h1>
+              <h2 className='font-bold'>For April of 2024</h2>
+            </div>
+          </div>
+        </div>
+        <Histogram
+          data={dayMonthYearCountGrouped}
+          histoKeys={days}
+          xFormatter={(val) =>
+            formatDate(addDays(startOfWeek(Date.now()), parseInt(val)), 'iiii')
+          }
+        />
+      </div>
+      <div>
+        <div className='hero bg-base-200'>
+          <div className='hero-content text-center'>
+            <div className='max-w-md'>
+              <h1 className='text-5xl font-bold'>Hour of month</h1>
+              <p className='py-6'>
+                This displays the number of hours for each month by type. Each
+                month will only show the type that was the most (all if tied)
+              </p>
+            </div>
+          </div>
+        </div>
+        <Histogram
+          data={monthCountGrouped}
+          histoKeys={months}
+          xFormatter={(val) =>
+            formatDate(
+              addMonths(startOfYear(Date.now()), parseInt(val) - 1),
+              'MMM',
+            )
+          }
+        />
+      </div>
+      <div>
+        <div className='hero bg-base-200'>
+          <div className='hero-content text-center'>
+            <div className='max-w-md'>
+              <h1 className='text-5xl font-bold'>Hour of month</h1>
+              <h2 className='font-bold'>For year of 2024</h2>
+            </div>
+          </div>
+        </div>
+        <Histogram
+          data={monthYearCountGrouped}
+          histoKeys={months}
+          xFormatter={(val) =>
+            formatDate(
+              addMonths(startOfYear(Date.now()), parseInt(val) - 1),
+              'MMM',
+            )
+          }
+        />
+      </div>
+      <div>
+        <div className='hero bg-base-200'>
+          <div className='hero-content text-center'>
+            <div className='max-w-md'>
+              <h1 className='text-5xl font-bold'>Hour of year</h1>
+              <p className='py-6'>
+                This displays the number of hours for each year by type. Each
+                year will only show the type that was the most (all if tied)
+              </p>
+            </div>
+          </div>
+        </div>
+        <Histogram
+          data={yearCountGrouped}
+          histoKeys={years}
+          xFormatter={(val) => formatDate(`${val}-02-01`, 'yyyy')}
+        />
+      </div>
+      <div>
+        <div className='hero bg-base-200'>
+          <div className='hero-content text-center'>
+            <div className='max-w-md'>
+              <h1 className='text-5xl font-bold'>Total time of year</h1>
+              <p className='py-6'>
+                This displays the accumulated time for each type for each year.
+              </p>
+            </div>
+          </div>
+        </div>
+        <Histogram
+          data={yearSumGrouped}
+          histoKeys={years}
+          xFormatter={(val) => formatDate(`${val}-02-01`, 'yyyy')}
+          YFormatter={(val) => {
+            const temp = formatDuration(
+              intervalToDuration(
+                interval(Date.now(), addSeconds(Date.now(), val)),
+              ),
+              { format: ['days', 'hours'] },
+            );
+            if (!temp) return undefined;
+            return temp;
+          }}
+        />
+      </div>
+      <div>
+        <div className='hero bg-base-200'>
+          <div className='hero-content text-center'>
+            <div className='max-w-md'>
+              <h1 className='text-5xl font-bold'>Day of week</h1>
+              <p className='py-6'>
+                This displays the number of hours for each day by type. Each day
+                will only show the type that was the most (all if tied)
+              </p>
+            </div>
+          </div>
+        </div>
+        <Histogram
+          data={dayCount}
+          histoKeys={days}
+          xFormatter={(val) =>
+            formatDate(addDays(startOfWeek(Date.now()), parseInt(val)), 'iiii')
+          }
+        />
+      </div>
+      <div>
+        <div className='hero bg-base-200'>
+          <div className='hero-content text-center'>
+            <div className='max-w-md'>
+              <h1 className='text-5xl font-bold'>Hour of day</h1>
+              <p className='py-6'>
+                This shows how many times each type was done for each hour of
+                the day. The type done the most is shown (all if tied).
+              </p>
+            </div>
+          </div>
+        </div>
+        <Histogram
+          data={hourCount}
           histoKeys={hours}
           xFormatter={(val) =>
             formatDate(addHours(startOfDay(Date.now()), parseInt(val)), 'haaa')
@@ -160,7 +332,7 @@ function App() {
         <div className='hero bg-base-200'>
           <div className='hero-content text-center'>
             <div className='max-w-md'>
-              <h1 className='text-5xl font-bold'>Day of week</h1>
+              <h1 className='text-5xl font-bold'>Hour of month</h1>
               <h2 className='font-bold'>For year of 2022</h2>
             </div>
           </div>

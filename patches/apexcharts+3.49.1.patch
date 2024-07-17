@@ -35,7 +35,7 @@ index 43d4162..fc7567b 100644
  * https://github.com/wout/svg.filter.js
  * Copyright (c) 2016 Wout Fierens; Licensed MIT */
 diff --git a/node_modules/apexcharts/dist/apexcharts.js b/node_modules/apexcharts/dist/apexcharts.js
-index d444ac6..5da6803 100644
+index d444ac6..68296d5 100644
 --- a/node_modules/apexcharts/dist/apexcharts.js
 +++ b/node_modules/apexcharts/dist/apexcharts.js
 @@ -12567,7 +12567,7 @@
@@ -83,7 +83,7 @@ index 8ae015c..678cf04 100644
              this.overrideResponsiveOptions(newOptions)
            }
 diff --git a/node_modules/apexcharts/types/apexcharts.d.ts b/node_modules/apexcharts/types/apexcharts.d.ts
-index 4ef65f4..e3d47a3 100644
+index 4ef65f4..d4a2b20 100644
 --- a/node_modules/apexcharts/types/apexcharts.d.ts
 +++ b/node_modules/apexcharts/types/apexcharts.d.ts
 @@ -18,11 +18,11 @@ declare class ApexCharts {
@@ -181,3 +181,12 @@ index 4ef65f4..e3d47a3 100644
    }
    formatter?(val: number, opts?: any): string
  }
+@@ -1149,7 +1153,7 @@ type ApexYAxis = {
+       fontFamily?: string
+       cssClass?: string
+     }
+-    formatter?(val: number, opts?: any): string | string[]
++    formatter?(val: number, opts?: any): string | string[] | undefined
+   }
+   axisBorder?: {
+     show?: boolean
