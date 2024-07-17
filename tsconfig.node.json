@@ -1,13 +1,16 @@
 // This tsconfig gets applied to the scripts
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "target": "ESNext",
     "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "ESNext",
     "skipLibCheck": true,
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "Bundler",
     "allowSyntheticDefaultImports": true,
     "strict": true,
+    "noEmit": true,
   },
-  "include": ["vite.config.ts", "tailwind.config.js", "scripts", "common", "types/**/*.d.ts"]
+  "include": ["vite.config.ts", "tailwind.config.js", "scripts", "common", "**/*.d.ts"]
 }
