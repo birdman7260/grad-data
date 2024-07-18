@@ -171,7 +171,9 @@ export default function Sunburst({ data }: SunburstProps) {
       path
         .transition(t)
         .tween('data', (d) => {
-          const i = d3.interpolate<Coord>(d.data.current, d.data.target!);
+          if (d.data.target === undefined)
+            throw new Error(`Somehow the target value is undefined`);
+          const i = d3.interpolate<Coord>(d.data.current, d.data.target);
           return (t) => (d.data.current = i(t));
         })
         .filter(function (d) {

@@ -32,7 +32,32 @@ function App() {
     return <div>Waiting...</div>;
   }
 
+  if (data.byTime.top.year === undefined) {
+    return (
+      <div role='alert' className='alert alert-error'>
+        Missing top year
+      </div>
+    );
+  }
+
+  if (data.byTime.all.date === undefined) {
+    return (
+      <div role='alert' className='alert alert-error'>
+        Missing day data
+      </div>
+    );
+  }
+
   const maxYearData = data.byTime.top.year[0];
+
+  if (maxYearData === undefined) {
+    return (
+      <div role='alert' className='alert alert-error'>
+        Missing max year data for top year
+      </div>
+    );
+  }
+
   const maxYear = parseInt(maxYearData.originalTime);
 
   const hourCount = makeHistogramData('hourCount', data.byType.all);
@@ -93,6 +118,10 @@ function App() {
   const temp = new Map<string, Datum[]>();
   for (const [groupKey, val] of Object.entries(data.byGroup.totals)) {
     const [project, description] = groupKey.split('|');
+
+    if (project === undefined || description === undefined)
+      throw new Error(`The group key is malformed: ${groupKey}`);
+
     if (!temp.has(project)) temp.set(project, []);
     const arr = temp.get(project);
     arr?.push({ name: description, value: val });
@@ -404,7 +433,7 @@ function App() {
             </div>
           </div>
         </div>
-        <MaxYear year={maxYear} dayData={data.byTime.all.day} />
+        <MaxYear year={maxYear} dayData={data.byTime.all.date} />
       </div>
       <div>
         <div className='hero bg-base-200'>

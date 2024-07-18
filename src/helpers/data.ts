@@ -54,7 +54,7 @@ export const makeHistogramData = (
       }
       indexing.push(opts.year);
 
-      if (opts?.month === undefined) {
+      if (opts.month === undefined) {
         throw new Error(`need to pass in a month option`);
       }
       indexing.push(opts.month);
@@ -76,7 +76,7 @@ export const makeHistogramData = (
       }
       indexing.push(opts.year);
 
-      if (opts?.countType === undefined) {
+      if (opts.countType === undefined) {
         opts = { countType: 'hourCount' };
       }
       break;
@@ -89,7 +89,7 @@ export const makeHistogramData = (
       }
       indexing.push(opts.month);
 
-      if (opts?.countType === undefined) {
+      if (opts.countType === undefined) {
         opts = { countType: 'hourCount' };
       }
       break;
@@ -102,12 +102,12 @@ export const makeHistogramData = (
       }
       indexing.push(opts.year);
 
-      if (opts?.month === undefined) {
+      if (opts.month === undefined) {
         throw new Error(`need to pass in a month option`);
       }
       indexing.push(opts.month);
 
-      if (opts?.countType === undefined) {
+      if (opts.countType === undefined) {
         opts = { countType: 'hourCount' };
       }
       break;
@@ -128,7 +128,7 @@ export const makeHistogramData = (
       }
       indexing.push(opts.year);
 
-      if (opts?.countType === undefined) {
+      if (opts.countType === undefined) {
         opts = { countType: 'hourCount' };
       }
       break;
@@ -176,7 +176,7 @@ const doTypes = (
       hist: {},
     };
 
-    let d = data[type]![timeSlice] as unknown as
+    let d = data[type][timeSlice] as unknown as
       | Histogram<`${number}`, HistogramValue>
       | undefined;
     for (const idx of indexing) {
@@ -189,7 +189,7 @@ const doTypes = (
       if (temp === undefined) {
         val = 0;
       } else if (typeof temp === 'number') {
-        val = temp as number;
+        val = temp;
       } else if (typeof temp === 'object' && 'count' in temp) {
         val = temp[opts.countType ?? 'hourCount'];
       } else {
@@ -198,7 +198,7 @@ const doTypes = (
         );
       }
 
-      newEntry.hist[key] = opts?.convert ? opts.convert(val) : val;
+      newEntry.hist[key] = opts.convert ? opts.convert(val) : val;
     }
 
     if (Object.values(newEntry.hist).every((v) => v === 0)) continue;
@@ -219,7 +219,11 @@ const doGrouped = (
   const retData: HistogramData[] = [];
 
   for (const data2 of Object.values(data)) {
+    if (data2 === undefined) throw new Error(`The group data is empty`);
+
     for (const record of Object.values(data2)) {
+      if (record === undefined) throw new Error(`The group data is empty`);
+
       const newEntry: HistogramData = {
         name: `${record.project} - ${record.description}`,
         hist: {},
@@ -238,7 +242,7 @@ const doGrouped = (
         if (temp === undefined) {
           val = 0;
         } else if (typeof temp === 'number') {
-          val = temp as number;
+          val = temp;
         } else if (typeof temp === 'object' && 'count' in temp) {
           val = temp[opts.countType ?? 'hourCount'];
         } else {
@@ -247,7 +251,7 @@ const doGrouped = (
           );
         }
 
-        newEntry.hist[key] = opts?.convert ? opts.convert(val) : val;
+        newEntry.hist[key] = opts.convert ? opts.convert(val) : val;
       }
 
       if (Object.values(newEntry.hist).every((v) => v === 0)) continue;
@@ -269,6 +273,8 @@ const doProject = (
   const retData: HistogramData[] = [];
 
   for (const record of Object.values(data)) {
+    if (record === undefined) throw new Error(`The project data is empty`);
+
     const newEntry: HistogramData = {
       name: record.project,
       hist: {},
@@ -287,7 +293,7 @@ const doProject = (
       if (temp === undefined) {
         val = 0;
       } else if (typeof temp === 'number') {
-        val = temp as number;
+        val = temp;
       } else if (typeof temp === 'object' && 'count' in temp) {
         val = temp[opts.countType ?? 'hourCount'];
       } else {
@@ -296,7 +302,7 @@ const doProject = (
         );
       }
 
-      newEntry.hist[key] = opts?.convert ? opts.convert(val) : val;
+      newEntry.hist[key] = opts.convert ? opts.convert(val) : val;
     }
 
     if (Object.values(newEntry.hist).every((v) => v === 0)) continue;

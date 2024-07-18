@@ -2,12 +2,7 @@ import fs from 'fs';
 import { addWeeks, format as formatDate } from 'date-fns';
 import { open } from 'sqlite';
 import sqlite3 from 'sqlite3';
-import SQL from 'sql-template-strings';
-import {
-  possibleSliceType,
-  possibleTagType,
-  possibleTimeType,
-} from '../common/enums';
+import { SQL } from './sqlTemplateString';
 
 const db = await open({
   filename: 'sqlite/grad-data.db',
@@ -26,18 +21,18 @@ type TopByTimeQuery =
   | ITopByTimeQuery<'hourYear', `${number}_${number}`>
   | ITopByTimeQuery<'hourMonth', `${number}_${number}`>
   | ITopByTimeQuery<'hourMonthYear', `${number}-${number}_${number}`>
-  | ITopByTimeQuery<'hourDayWeek', `${number}_${number}`>
-  | ITopByTimeQuery<'hourDayWeekYear', `${number}_${number}_${number}`>
-  | ITopByTimeQuery<'hourDayWeekMonth', `${number}_${number}_${number}`>
+  | ITopByTimeQuery<'hourDay', `${number}_${number}`>
+  | ITopByTimeQuery<'hourDayYear', `${number}_${number}_${number}`>
+  | ITopByTimeQuery<'hourDayMonth', `${number}_${number}_${number}`>
   | ITopByTimeQuery<
-      'hourDayWeekMonthYear',
+      'hourDayMonthYear',
       `${number}-${number}_${number}_${number}`
     >
   | ITopByTimeQuery<'day', `${number}-${number}-${number}`>
-  | ITopByTimeQuery<'dayWeek', `${number}`>
-  | ITopByTimeQuery<'dayWeekYear', `${number}_${number}`>
-  | ITopByTimeQuery<'dayWeekMonth', `${number}_${number}`>
-  | ITopByTimeQuery<'dayWeekMonthYear', `${number}-${number}_${number}`>
+  | ITopByTimeQuery<'day', `${number}`>
+  | ITopByTimeQuery<'dayYear', `${number}_${number}`>
+  | ITopByTimeQuery<'dayMonth', `${number}_${number}`>
+  | ITopByTimeQuery<'dayMonthYear', `${number}-${number}_${number}`>
   | ITopByTimeQuery<'month', `${number}`>
   | ITopByTimeQuery<'monthYear', `${number}-${number}`>
   | ITopByTimeQuery<'week', `${number}_${number}`>
@@ -75,43 +70,6 @@ type TotalsQuery = {
   sliceType: TotalsType;
   sliceKey: string;
   totalTime: number;
-};
-
-const final: JSONData = {
-  byTime: {
-    top: possibleTimeType.reduce<FinalByTime>((pv, v: TimeType) => {
-      pv[v] = [];
-      return pv;
-    }, {}),
-    all: possibleTimeType.reduce<FinalByTime>((pv, v: TimeType) => {
-      pv[v] = [];
-      return pv;
-    }, {}),
-  },
-  byType: {
-    all: possibleTagType.reduce<Partial<FinalByType>>((pv, v: TagType) => {
-      pv[v] = possibleSliceType.reduce<Partial<FinalBySlice>>(
-        (pv2, v2: SliceType) => {
-          pv2[v2] = {};
-          return pv2;
-        },
-        {},
-      ) as FinalBySlice;
-      return pv;
-    }, {}) as FinalByType,
-    totals: possibleTagType.reduce<Partial<TotalsByType>>((pv, v: TagType) => {
-      pv[v] = 0;
-      return pv;
-    }, {}) as TotalsByType,
-  },
-  byGroup: {
-    all: {},
-    totals: {},
-  },
-  byProject: {
-    all: {},
-    totals: {},
-  },
 };
 
 const mostTime = await db.all<TopByTimeQuery[]>(SQL`
@@ -153,17 +111,17 @@ const getTimeString = (type: TimeType, time: string) => {
       return hourMap(parseInt(time));
 
     // Fridays at 3 pm, Mondays at 12 noon
-    case 'hourDayWeek': {
+    case 'hourDay': {
       const [day, hour] = time.split('_');
       return `${dayMap(parseInt(day))}s at ${hourMap(parseInt(hour))}`;
     }
 
     // Friday, April 29th, 2020
-    case 'day':
+    case 'date':
       return formatDate(time, 'PPPP');
 
     // Monday
-    case 'dayWeek':
+    case 'day':
       return dayMap(parseInt(time));
 
     // 1st week of 2022
@@ -193,6 +151,8 @@ const getTimeString = (type: TimeType, time: string) => {
   }
 };
 
+const timeTop: Partial<FinalByTime> = {};
+
 for (const row of mostTime) {
   const val: FinalTimeValue = {
     totalTime: row.totalTime,
@@ -200,8 +160,14 @@ for (const row of mostTime) {
     originalTime: row.timeValue,
   };
 
-  final.byTime.top[row.timeType].push(val);
+  const key = row.timeType;
+
+  if (timeTop[key] === undefined) timeTop[key] = [];
+
+  timeTop[key].push(val);
 }
+
+const timeAll: FinalByTime = {};
 
 const allTimeRowCount = await db.each<AllByTimeQuery>(
   SQL`
@@ -217,9 +183,15 @@ FROM totalsTime
       originalTime: row.timeValue,
     };
 
-    final.byTime.all[row.timeType].push(val);
+    const key = row.timeType;
+
+    if (timeAll[key] === undefined) timeAll[key] = [];
+
+    timeAll[key].push(val);
   },
 );
+
+const typeAll: FinalByType = {};
 
 const allByTypeRowCount = await db.each<AllByTypeQuery>(
   SQL`
@@ -229,13 +201,19 @@ FROM totalsTyped
   (err, row) => {
     if (err) throw new Error(`Failed when getting all by type: ${err}`);
 
-    if (final.byType.all[row.type] === undefined) {
-      final.byType.all[row.type] = {} as FinalBySlice;
+    const key = row.type;
+
+    if (typeAll[key] === undefined) {
+      typeAll[key] = {};
     }
 
-    final.byType.all[row.type]![row.histType] = JSON.parse(row.hist);
+    // TODO: probably better to set up using typebox...
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    typeAll[key][row.histType] = JSON.parse(row.hist);
   },
 );
+
+const groupAll: FinalByGroup = {};
 
 const allByGroupRowCount = await db.each<AllGroupedQuery>(
   SQL`
@@ -245,21 +223,24 @@ FROM totalsGrouped
   (err, row) => {
     if (err) throw new Error(`Failed when getting all by type: ${err}`);
 
-    if (final.byGroup.all[row.project] === undefined)
-      final.byGroup.all[row.project] = {};
+    const project = row.project;
+    const description = row.description;
 
-    if (final.byGroup.all[row.project][row.description] === undefined)
-      final.byGroup.all[row.project][row.description] = {
-        project: row.project,
-        description: row.description,
+    if (groupAll[project] === undefined) groupAll[project] = {};
+    if (groupAll[project][description] === undefined)
+      groupAll[project][description] = {
+        project,
+        description,
         type: JSON.parse(row.type) as TagType[],
-      } as unknown as FinalByGroupRecord;
+      };
 
-    final.byGroup.all[row.project][row.description][row.histType] = JSON.parse(
-      row.hist,
-    );
+    // TODO: probably better to set up using typebox...
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    groupAll[project][description][row.histType] = JSON.parse(row.hist);
   },
 );
+
+const projectAll: FinalByProject = {};
 
 const allByProjectRowCount = await db.each<AllProjectQuery>(
   SQL`
@@ -269,15 +250,23 @@ FROM totalsProject
   (err, row) => {
     if (err) throw new Error(`Failed when getting all by type: ${err}`);
 
-    if (final.byProject.all[row.project] === undefined)
-      final.byProject.all[row.project] = {
-        project: row.project,
-        type: JSON.parse(row.type) as TagType[],
-      } as unknown as FinalByProjectRecord;
+    const project = row.project;
 
-    final.byProject.all[row.project][row.histType] = JSON.parse(row.hist);
+    if (projectAll[project] === undefined)
+      projectAll[project] = {
+        project,
+        type: JSON.parse(row.type) as TagType[],
+      };
+
+    // TODO: probably better to set up using typebox...
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    projectAll[project][row.histType] = JSON.parse(row.hist);
   },
 );
+
+const typeTotals: TotalsByType = {};
+const groupTotals: Record<string, number> = {};
+const projectTotals: Record<Project, number> = {};
 
 const totalsCount = await db.each<TotalsQuery>(
   SQL`
@@ -289,17 +278,36 @@ FROM totals
 
     switch (row.sliceType) {
       case 'project':
-        final.byProject.totals[row.sliceKey] = row.totalTime;
+        projectTotals[row.sliceKey] = row.totalTime;
         break;
       case 'project.description':
-        final.byGroup.totals[row.sliceKey] = row.totalTime;
+        groupTotals[row.sliceKey] = row.totalTime;
         break;
       case 'type':
-        final.byType.totals[row.sliceKey as TagType] = row.totalTime;
+        typeTotals[row.sliceKey as TagType] = row.totalTime;
         break;
     }
   },
 );
+
+const final: JSONData = {
+  byTime: {
+    top: timeTop,
+    all: timeAll,
+  },
+  byType: {
+    all: typeAll,
+    totals: typeTotals,
+  },
+  byGroup: {
+    all: groupAll,
+    totals: groupTotals,
+  },
+  byProject: {
+    all: projectAll,
+    totals: projectTotals,
+  },
+};
 
 await db.close();
 

@@ -17,20 +17,24 @@ export const isFinalByGroup = (data: unknown): data is FinalByGroup => {
   if (typeof data !== 'object') return false;
   for (const [project, projVal] of Object.entries(data)) {
     if (typeof project !== 'string') return false;
-    if (
-      projVal === undefined ||
-      projVal === null ||
-      typeof projVal !== 'object'
-    )
-      return false;
+    if (!isFinalByGroupRecord(projVal)) return false;
+  }
 
-    for (const [description, descVal] of Object.entries(projVal)) {
-      if (typeof description !== 'string') return false;
-      if (typeof descVal === 'number') continue;
-      if (!!descVal && typeof descVal === 'object' && 'description' in descVal)
-        continue;
-      return false;
-    }
+  return true;
+};
+
+const isFinalByGroupRecord = (data: unknown): data is FinalByGroupRecord => {
+  if (data === undefined || data === null) return false;
+  if (typeof data !== 'object') return false;
+  if (Array.isArray(data)) return false;
+
+  for (const [description, descVal] of Object.entries(data)) {
+    if (typeof description !== 'string') return false;
+    if (typeof descVal === 'number') continue;
+    if (!!descVal && typeof descVal === 'object' && 'description' in descVal)
+      continue;
+
+    return false;
   }
 
   return true;

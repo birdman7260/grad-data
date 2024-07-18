@@ -1,4 +1,4 @@
-import {
+import type {
   possibleSliceType,
   possibleTagType,
   possibleTimeType,
@@ -64,59 +64,91 @@ declare global {
       }
     | Record<string, never>;
 
-  type FinalBySlice = Extends<
-    { [key in SliceType]: string },
-    {
-      hourCount: Histogram<`${number}`, number | undefined>;
-      hourYearCount: Histogram<
-        `${number}`,
-        Histogram<`${number}`, number | undefined> | undefined
-      >;
-      hourMonthCount: Histogram<
-        `${number}`,
-        Histogram<`${number}`, number | undefined> | undefined
-      >;
-      hourMonthYearCount: Histogram<
-        `${number}`,
-        | Histogram<
-            `${number}`,
-            Histogram<`${number}`, number | undefined> | undefined
-          >
-        | undefined
-      >;
-      dayCount: Histogram<`${number}`, HistogramComplexValue | undefined>;
-      dayYearCount: Histogram<
-        `${number}`,
-        Histogram<`${number}`, HistogramComplexValue | undefined> | undefined
-      >;
-      dayMonthCount: Histogram<
-        `${number}`,
-        Histogram<`${number}`, HistogramComplexValue | undefined> | undefined
-      >;
-      dayMonthYearCount: Histogram<
-        `${number}`,
-        | Histogram<
-            `${number}`,
-            | Histogram<`${number}`, HistogramComplexValue | undefined>
-            | undefined
-          >
-        | undefined
-      >;
-      monthCount: Histogram<`${number}`, HistogramComplexValue | undefined>;
-      monthYearCount: Histogram<
-        `${number}`,
-        Histogram<`${number}`, HistogramComplexValue | undefined> | undefined
-      >;
-      yearCount: Histogram<`${number}`, HistogramComplexValue | undefined>;
-      yearSum: Histogram<`${number}`, number | undefined>;
-    }
+  type FinalBySlice = Partial<
+    Extends<
+      { [key in SliceType]: string },
+      {
+        hourCount: Histogram<`${number}`, number | undefined>;
+        hourDayCount: Histogram<
+          `${number}`,
+          Histogram<`${number}`, number | undefined> | undefined
+        >;
+        hourMonthCount: Histogram<
+          `${number}`,
+          Histogram<`${number}`, number | undefined> | undefined
+        >;
+        hourYearCount: Histogram<
+          `${number}`,
+          Histogram<`${number}`, number | undefined> | undefined
+        >;
+        hourDayMonthCount: Histogram<
+          `${number}`,
+          | Histogram<
+              `${number}`,
+              Histogram<`${number}`, number | undefined> | undefined
+            >
+          | undefined
+        >;
+        hourDayYearCount: Histogram<
+          `${number}`,
+          | Histogram<
+              `${number}`,
+              Histogram<`${number}`, number | undefined> | undefined
+            >
+          | undefined
+        >;
+        hourMonthYearCount: Histogram<
+          `${number}`,
+          | Histogram<
+              `${number}`,
+              Histogram<`${number}`, number | undefined> | undefined
+            >
+          | undefined
+        >;
+        hourDayMonthYearCount: Histogram<
+          `${number}`,
+          | Histogram<
+              `${number}`,
+              | Histogram<
+                  `${number}`,
+                  Histogram<`${number}`, number | undefined> | undefined
+                >
+              | undefined
+            >
+          | undefined
+        >;
+        dayCount: Histogram<`${number}`, HistogramComplexValue | undefined>;
+        dayYearCount: Histogram<
+          `${number}`,
+          Histogram<`${number}`, HistogramComplexValue | undefined> | undefined
+        >;
+        dayMonthCount: Histogram<
+          `${number}`,
+          Histogram<`${number}`, HistogramComplexValue | undefined> | undefined
+        >;
+        dayMonthYearCount: Histogram<
+          `${number}`,
+          | Histogram<
+              `${number}`,
+              | Histogram<`${number}`, HistogramComplexValue | undefined>
+              | undefined
+            >
+          | undefined
+        >;
+        monthCount: Histogram<`${number}`, HistogramComplexValue | undefined>;
+        monthYearCount: Histogram<
+          `${number}`,
+          Histogram<`${number}`, HistogramComplexValue | undefined> | undefined
+        >;
+        yearCount: Histogram<`${number}`, HistogramComplexValue | undefined>;
+        yearSum: Histogram<`${number}`, number | undefined>;
+      }
+    >
   >;
 
-  type FinalByTime =
-    | {
-        [key in TimeType]: FinalTimeValue[];
-      }
-    | Record<string, never>;
+  type FinalByTime = {
+    [key in TimeType]?: FinalTimeValue[];
+  };
 
   type FinalByType = {
     [key in TagType]?: FinalBySlice;
@@ -133,11 +165,19 @@ declare global {
     project: Project;
   };
 
-  type FinalByGroup = Record<Project, Record<Description, FinalByGroupRecord>>;
+  type FinalByGroup = {
+    [key in Project]?: {
+      [key in Description]?: FinalByGroupRecord;
+    };
+  };
 
-  type FinalByProject = Record<Project, FinalByProjectRecord>;
+  type FinalByProject = {
+    [key in Project]?: FinalByProjectRecord;
+  };
 
-  type TotalsByType = Record<TagType, number>;
+  type TotalsByType = {
+    [key in TagType]?: number;
+  };
 
   type JSONData = {
     byTime: {

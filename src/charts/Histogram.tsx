@@ -18,12 +18,21 @@ function Histogram({
   xFormatter = (val) => val,
   YFormatter = (val) => (val === 0 ? undefined : `${val}`),
 }: HistogramProps) {
+  if (data.length === 0 || data[0] === undefined) {
+    return (
+      <div role='alert' className='alert alert-error'>
+        <span>the data length is 0</span>
+      </div>
+    );
+  }
+  const firstData = data[0];
+
   const stagedSeries = keys.reduce<
     Record<string, Record<string, ChartDataTypeFull | undefined> | undefined>
   >((pv, key) => {
     const max = data.reduce<HistogramData[]>(
       (max, c) => {
-        const a = max[0].hist[key];
+        const a = max[0]!.hist[key];
         const b = c.hist[key];
 
         if (a === undefined || b === undefined) {
@@ -34,11 +43,12 @@ function Histogram({
         if (b > a) return [c];
         return [max, c].flat();
       },
-      [data[0]],
+      [firstData],
     );
     max.forEach((v) => {
       if (pv[v.name] === undefined) pv[v.name] = {};
-      pv[v.name]![key] = {
+      // @ts-expect-error The above ensures that the index will not be undefined
+      pv[v.name][key] = {
         x: key,
         y: v.hist[key],
       };

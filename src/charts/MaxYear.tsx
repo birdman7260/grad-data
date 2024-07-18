@@ -263,12 +263,12 @@ function MaxYear({ year, dayData: data }: MaxYearProps) {
               title: {
                 formatter(seriesName, opt?) {
                   if (isTooltipYTitleFormatterOpts(opt)) {
-                    return formatDate(
-                      opt.w.globals.initialSeries[opt.seriesIndex].data[
-                        opt.dataPointIndex
-                      ].x,
-                      'iiii',
-                    );
+                    const date = opt.w.globals.initialSeries[opt.seriesIndex]
+                      ?.data[opt.dataPointIndex]?.x as Date | undefined;
+                    if (date === undefined) {
+                      return `Missing date: ${seriesName}`;
+                    }
+                    return formatDate(date, 'iiii');
                   }
                   return seriesName;
                 },
