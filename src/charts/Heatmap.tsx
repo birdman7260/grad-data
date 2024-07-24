@@ -1,3 +1,7 @@
+import './Heatmap.css';
+
+import { useMemo, useRef, useState } from 'react';
+import { ApexOptions } from 'apexcharts';
 import Chart from 'react-apexcharts';
 import {
   getDay,
@@ -11,23 +15,23 @@ import {
   endOfWeek,
   isAfter,
 } from 'date-fns';
-import './MaxYear.css';
+
 import {
   isEventsFunctionChart,
   isTooltipYTitleFormatterOpts,
 } from '../helpers/apexHelpers';
-import { useMemo, useRef, useState } from 'react';
-import { ApexOptions } from 'apexcharts';
 
-type MaxYearProps = {
+type HeatmapProps = {
   year: number;
   dayData: FinalTimeValue[];
+  showData: boolean;
 };
 
 const createSeries = (
   data: FinalTimeValue[],
   start: number,
   end: number,
+  showData: boolean,
 ): [ApexAxisChartSeries<ChartDataType>, number] => {
   const heatmapDataSet: Record<
     Day,
@@ -75,14 +79,15 @@ const createSeries = (
     const dayOfWeek = getDay(i) as Day;
     const day = formatDate(i, 'yyyy-MM-dd');
     const val = sortedDaysData.find((v) => v.originalTime === day);
+    const tempVal = val?.totalTime ?? 0;
 
-    if (val !== undefined && val.totalTime > heatmapDataBiggestDayValue) {
-      heatmapDataBiggestDayValue = val.totalTime;
+    if (tempVal > heatmapDataBiggestDayValue) {
+      heatmapDataBiggestDayValue = tempVal;
     }
 
     heatmapDataSet[dayOfWeek].data.push({
       x: i,
-      y: val?.totalTime ?? 0,
+      y: showData ? tempVal : 0,
     });
 
     i = addDays(i, 1);
@@ -91,7 +96,7 @@ const createSeries = (
   return [Object.values(heatmapDataSet).reverse(), heatmapDataBiggestDayValue];
 };
 
-function MaxYear({ year, dayData: data }: MaxYearProps) {
+function Heatmap({ year, dayData: data, showData }: HeatmapProps) {
   const [initialStart, initialEnd] = useMemo(
     () => [
       new Date(year, 0, 1).valueOf(),
@@ -103,12 +108,12 @@ function MaxYear({ year, dayData: data }: MaxYearProps) {
   const [start, setStart] = useState(initialStart);
   const [end, setEnd] = useState(initialEnd);
   const heatmapData = useMemo(() => {
-    const [series, biggest] = createSeries(data, start, end);
+    const [series, biggest] = createSeries(data, start, end, showData);
     if (heatmapDataBiggestDayValue.current === null) {
       heatmapDataBiggestDayValue.current = biggest;
     }
     return series;
-  }, [data, start, end]);
+  }, [data, start, end, showData]);
 
   if (heatmapDataBiggestDayValue.current === null) {
     return <div>waiting...</div>;
@@ -300,4 +305,4 @@ function MaxYear({ year, dayData: data }: MaxYearProps) {
   );
 }
 
-export default MaxYear;
+export default Heatmap;

@@ -1,5 +1,7 @@
 import Chart from 'react-apexcharts';
 
+import { getNiceMaxY } from '../helpers/apexHelpers';
+
 export type HistogramData = {
   name: string;
   hist: Histogram<string, number>;
@@ -8,6 +10,7 @@ export type HistogramData = {
 type HistogramProps = {
   data: HistogramData[];
   histoKeys: string[];
+  showData: boolean;
   xFormatter?: (val: string) => string;
   YFormatter?: (val: number) => string | undefined;
 };
@@ -15,6 +18,7 @@ type HistogramProps = {
 function Histogram({
   data,
   histoKeys: keys,
+  showData,
   xFormatter = (val) => val,
   YFormatter = (val) => (val === 0 ? undefined : `${val}`),
 }: HistogramProps) {
@@ -57,23 +61,43 @@ function Histogram({
     return pv;
   }, {});
 
+  let maxY = 0;
+
   const series = Object.entries(stagedSeries).reduce<
     ApexAxisChartSeries<ChartDataType>
   >((pv, [name, c]) => {
     const data = [];
 
     // make sure that the item at least has some data, filter out if not
-    if (Object.values(c ?? {}).every((v) => v === undefined || v.y === 0)) {
+    if (
+      Object.values(c ?? {}).every(
+        (v) => v === undefined || !Number.isInteger(v.y) || v.y === 0,
+      )
+    ) {
       return pv;
     }
 
     for (const key of keys) {
-      data.push(
-        c?.[key] ?? {
+      const tempY: unknown = c?.[key]?.y ?? 0;
+      // keep track of the max Y value so the chart can have the grid
+      // even when showData === false
+      if (typeof tempY === 'number') {
+        if (tempY > maxY) maxY = tempY;
+      }
+
+      if (!showData) {
+        data.push({
           x: key,
           y: 0,
-        },
-      );
+        });
+      } else {
+        data.push(
+          c?.[key] ?? {
+            x: key,
+            y: 0,
+          },
+        );
+      }
     }
 
     pv.push({
@@ -84,48 +108,46 @@ function Histogram({
   }, []);
 
   return (
-    <div>
-      <Chart
-        type='bar'
-        series={series}
-        options={{
-          chart: {
-            toolbar: {
-              show: false,
-            },
+    <Chart
+      type='bar'
+      series={series}
+      options={{
+        chart: {
+          toolbar: {
+            show: false,
           },
-          dataLabels: {
-            enabled: false,
+        },
+        dataLabels: {
+          enabled: false,
+        },
+        plotOptions: {
+          bar: {
+            columnWidth: '99%',
+            hideZeroBarsWhenGrouped: true,
           },
-          plotOptions: {
-            bar: {
-              columnWidth: '99%',
-              hideZeroBarsWhenGrouped: true,
-            },
+        },
+        xaxis: {
+          type: 'category',
+          labels: {
+            formatter: xFormatter,
           },
-          xaxis: {
-            type: 'category',
-            labels: {
-              formatter: xFormatter,
-            },
+        },
+        yaxis: {
+          labels: {
+            formatter: YFormatter,
           },
-          yaxis: {
-            labels: {
-              formatter: YFormatter,
-            },
-            logarithmic: false,
-          },
-          tooltip: {
-            theme: 'dark',
-            shared: true,
-            followCursor: true,
-            fillSeriesColor: true,
-            intersect: false,
-            hideEmptySeries: true,
-          },
-        }}
-      />
-    </div>
+          max: getNiceMaxY(maxY),
+        },
+        tooltip: {
+          theme: 'dark',
+          shared: true,
+          followCursor: true,
+          fillSeriesColor: true,
+          intersect: false,
+          hideEmptySeries: true,
+        },
+      }}
+    />
   );
 }
 

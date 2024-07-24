@@ -12,5 +12,5 @@
     "strict": true,
     "noEmit": true,
   },
-  "include": ["vite.config.ts", "tailwind.config.js", "scripts", "common", "**/*.d.ts"]
+  "include": ["vite.config.ts", "scripts", "common", "**/*.d.ts"]
 }

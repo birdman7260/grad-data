@@ -1,3 +1,5 @@
+import { type HistogramData } from '../charts/Histogram';
+
 import {
   days,
   hours,
@@ -5,7 +7,6 @@ import {
   possibleTagType,
   years,
 } from '../../common/enums';
-import { type HistogramData } from '../charts/Histogram';
 import { isFinalByGroup, isFinalByProject, isFinalByType } from './guards';
 
 type CountTypes = 'count' | 'hourCount';

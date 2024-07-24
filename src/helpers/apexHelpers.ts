@@ -67,3 +67,24 @@ export const isEventsFunctionChart = (
     isApexGlobal(chart.w.globals)
   );
 };
+
+// Converted from apexcharts/src/modules/Scales.js: niceScale()
+export const getNiceMaxY = (maxY: number) => {
+  // The tick value is 10 because:
+  //  I'm not supporting forceNiceScale
+  //  I'm not supporting user setting tickAmount
+  let stepSize = maxY / 10;
+
+  const mag = Math.floor(Math.log10(stepSize));
+  const magPow = Math.pow(10, mag);
+  let magMsd = Math.ceil(stepSize / magPow);
+
+  // This array comes from apexcharts/src/modules/settings/Globals.js: globalVars()
+  //  The code seems to try to have two separate arrays depending on if there are
+  //  any floats, but both arrays are the same so i'm not dealing with that
+  magMsd = [1, 1, 2, 5, 5, 5, 10, 10, 10, 10, 10][magMsd] ?? 1;
+
+  stepSize = magMsd * magPow;
+
+  return stepSize * Math.ceil(maxY / stepSize);
+};
